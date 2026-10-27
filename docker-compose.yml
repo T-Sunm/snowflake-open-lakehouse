@@ -1,0 +1,38 @@
+# PostgreSQL operational source for the demo.
+# Same file on your laptop (development) and on the EC2 host next to Openflow.
+#   docker compose up -d
+#   docker compose down        # stop, keep data
+#   docker compose down -v     # stop and delete data
+services:
+  postgres:
+    image: postgres:16
+    container_name: aq-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-airquality}
+    # Logical replication is what lets the Openflow connector read changes.
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Repo scripts are visible inside the container under /workspace.
+      - ./postgres:/workspace/postgres:ro
+      - ./teardown:/workspace/teardown:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-airquality}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

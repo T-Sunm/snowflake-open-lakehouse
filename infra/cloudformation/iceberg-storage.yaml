@@ -1,0 +1,147 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  S3 bucket and IAM role for Snowflake-managed Apache Iceberg tables
+  (snowflake-open-lakehouse). Deploy in the same region as your Snowflake account.
+
+  Pass 1: deploy without SnowflakeIamUserArn. The role then trusts only this AWS
+  account, so Snowflake cannot use it yet.
+  Pass 2: after CREATE EXTERNAL VOLUME, run DESC EXTERNAL VOLUME in Snowflake and
+  update the stack with SnowflakeIamUserArn = STORAGE_AWS_IAM_USER_ARN.
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: ""
+    Description: >
+      Optional. Leave empty to use aq-lakehouse-<account id>-<region>, which stays
+      the same every time you recreate the stack.
+    AllowedPattern: "^$|^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$"
+  BasePrefix:
+    Type: String
+    Default: lakehouse
+    Description: Folder inside the bucket where Snowflake writes Iceberg files.
+    AllowedPattern: "^[a-z0-9][a-z0-9_-]*$"
+  ExternalId:
+    Type: String
+    Default: snowflake-open-lakehouse
+    Description: >
+      External ID shared by the IAM trust policy and the Snowflake external
+      volume (STORAGE_AWS_EXTERNAL_ID). Use the same value on both sides.
+    MinLength: 2
+  SnowflakeIamUserArn:
+    Type: String
+    Default: ""
+    Description: >
+      Leave empty on the first deploy. Then set it to STORAGE_AWS_IAM_USER_ARN
+      from DESC EXTERNAL VOLUME in Snowflake.
+
+Conditions:
+  HasSnowflakeUser: !Not [!Equals [!Ref SnowflakeIamUserArn, ""]]
+  UseDefaultBucketName: !Equals [!Ref BucketName, ""]
+
+Resources:
+  IcebergBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !If
+        - UseDefaultBucketName
+        - !Sub "aq-lakehouse-${AWS::AccountId}-${AWS::Region}"
+        - !Ref BucketName
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: project
+          Value: snowflake-open-lakehouse
+
+  IcebergBucketTlsOnly:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref IcebergBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt IcebergBucket.Arn
+              - !Sub "${IcebergBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+
+  SnowflakeIcebergRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "snowflake-iceberg-${AWS::StackName}"
+      Description: Assumed by Snowflake to read and write Iceberg files in the lakehouse bucket.
+      MaxSessionDuration: 43200
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !If
+                - HasSnowflakeUser
+                - !Ref SnowflakeIamUserArn
+                - !Sub "arn:aws:iam::${AWS::AccountId}:root"   # placeholder until pass 2
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Policies:
+        - PolicyName: iceberg-bucket-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ObjectReadWrite
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:DeleteObject
+                  - s3:DeleteObjectVersion
+                Resource: !Sub "${IcebergBucket.Arn}/${BasePrefix}/*"
+              - Sid: ListPrefix
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt IcebergBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - !Sub "${BasePrefix}/*"
+              - Sid: BucketLocation
+                Effect: Allow
+                Action: s3:GetBucketLocation
+                Resource: !GetAtt IcebergBucket.Arn
+      Tags:
+        - Key: project
+          Value: snowflake-open-lakehouse
+
+Outputs:
+  BucketName:
+    Value: !Ref IcebergBucket
+  StorageBaseUrl:
+    Description: Use as STORAGE_BASE_URL in CREATE EXTERNAL VOLUME.
+    Value: !Sub "s3://${IcebergBucket}/${BasePrefix}/"
+  RoleArn:
+    Description: Use as STORAGE_AWS_ROLE_ARN in CREATE EXTERNAL VOLUME.
+    Value: !GetAtt SnowflakeIcebergRole.Arn
+  ExternalId:
+    Description: Use as STORAGE_AWS_EXTERNAL_ID in CREATE EXTERNAL VOLUME.
+    Value: !Ref ExternalId
+  TrustReady:
+    Description: true once the role trusts the Snowflake IAM user (pass 2 done).
+    Value: !If [HasSnowflakeUser, "true", "false"]
