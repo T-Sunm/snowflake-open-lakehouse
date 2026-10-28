@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 840" width="1200" height="840" font-family="'DejaVu Sans', Arial, sans-serif">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="840" fill="#ffffff"/>
+
+  <text x="30" y="42" font-size="26" font-weight="700" fill="#0f172a">Snowflake External Volume + AWS IAM Role</text>
+  <text x="30" y="68" font-size="14" fill="#64748b">How the two sides establish trust, then how Snowflake writes to your S3 bucket</text>
+
+  <!-- legend -->
+  <circle cx="912" cy="38" r="9" fill="#fde047" stroke="#ca8a04"/>
+  <text x="930" y="43" font-size="13" fill="#334155">Setup (1–5)</text>
+  <circle cx="912" cy="62" r="9" fill="#86efac" stroke="#16a34a"/>
+  <text x="930" y="67" font-size="13" fill="#334155">Run time (6–8)</text>
+
+  <!-- panels -->
+  <rect x="30" y="95" width="510" height="495" rx="14" fill="#f0fdf4" stroke="#86efac" stroke-width="2"/>
+  <rect x="660" y="95" width="510" height="495" rx="14" fill="#eff6ff" stroke="#93c5fd" stroke-width="2"/>
+  <rect x="195" y="80" width="180" height="30" rx="15" fill="#0f172a"/>
+  <text x="285" y="100" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">YOUR AWS ACCOUNT</text>
+  <rect x="860" y="80" width="110" height="30" rx="15" fill="#0f172a"/>
+  <text x="915" y="100" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">SNOWFLAKE</text>
+
+  <!-- CloudFormation -->
+  <rect x="60" y="140" width="450" height="70" rx="10" fill="#ffedd5" stroke="#fb923c" stroke-width="2"/>
+  <text x="80" y="170" font-size="17" font-weight="700" fill="#0f172a">AWS CloudFormation</text>
+  <text x="80" y="193" font-size="13" fill="#334155">Creates the role (deploy 1), updates trust (deploy 2)</text>
+
+  <!-- IAM Role -->
+  <rect x="60" y="260" width="450" height="110" rx="10" fill="#fef9c3" stroke="#facc15" stroke-width="2"/>
+  <text x="80" y="285" font-size="17" font-weight="700" fill="#0f172a">IAM Role</text>
+  <rect x="80" y="305" width="190" height="52" rx="8" fill="#dcfce7" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="92" y="326" font-size="13" font-weight="700" fill="#14532d">Permission policy</text>
+  <text x="92" y="345" font-size="12" fill="#334155">Read / write on the bucket</text>
+  <rect x="290" y="305" width="200" height="52" rx="8" fill="#fce7f3" stroke="#f472b6" stroke-width="1.5"/>
+  <text x="302" y="326" font-size="13" font-weight="700" fill="#831843">Trust policy</text>
+  <text x="302" y="345" font-size="11.5" fill="#334155">Who may assume + ExternalId</text>
+
+  <!-- S3 -->
+  <rect x="60" y="430" width="200" height="70" rx="10" fill="#dcfce7" stroke="#4ade80" stroke-width="2"/>
+  <text x="80" y="460" font-size="17" font-weight="700" fill="#0f172a">S3 bucket</text>
+  <text x="80" y="482" font-size="12" fill="#334155">Iceberg data + metadata</text>
+
+  <!-- STS -->
+  <rect x="320" y="430" width="190" height="70" rx="10" fill="#ede9fe" stroke="#a78bfa" stroke-width="2"/>
+  <text x="340" y="460" font-size="17" font-weight="700" fill="#0f172a">AWS STS</text>
+  <text x="340" y="482" font-size="12" fill="#334155">AssumeRole + ExternalId</text>
+
+  <!-- Snowflake IAM user -->
+  <rect x="690" y="140" width="450" height="70" rx="10" fill="#fce7f3" stroke="#f472b6" stroke-width="2"/>
+  <text x="710" y="168" font-size="17" font-weight="700" fill="#0f172a">Snowflake IAM user</text>
+  <text x="710" y="192" font-size="12" font-family="'DejaVu Sans Mono', monospace" fill="#334155">arn:aws:iam::&lt;snowflake-account&gt;:user/&lt;id&gt;-s</text>
+
+  <!-- External volume -->
+  <rect x="690" y="260" width="450" height="110" rx="10" fill="#dbeafe" stroke="#60a5fa" stroke-width="2"/>
+  <text x="710" y="288" font-size="17" font-weight="700" fill="#0f172a">External Volume  AQ_ICEBERG_VOL</text>
+  <text x="710" y="316" font-size="12" font-family="'DejaVu Sans Mono', monospace" fill="#334155">STORAGE_AWS_ROLE_ARN   = role ARN</text>
+  <text x="710" y="338" font-size="12" font-family="'DejaVu Sans Mono', monospace" fill="#334155">STORAGE_AWS_EXTERNAL_ID = 'snowflake-open-lakehouse'</text>
+
+  <!-- setup arrows (dashed) -->
+  <g stroke="#334155" stroke-width="2.2" fill="none" marker-end="url(#ah)">
+    <path d="M200,210 V258"/>                 <!-- 1 -->
+    <path d="M510,315 H688"/>                 <!-- 2 -->
+    <path d="M915,258 V212"/>                 <!-- 3 -->
+    <path d="M688,175 H512"/>                 <!-- 4 -->
+    <path d="M390,210 V303"/>                 <!-- 5 -->
+  </g>
+  <!-- runtime arrows (solid) -->
+  <g stroke="#334155" stroke-width="2.2" fill="none" marker-end="url(#ah)">
+    <path d="M720,370 V448 H512"/>            <!-- 6 request -->
+    <path d="M512,484 H780 V372"/>            <!-- 7 temporary credentials -->
+    <path d="M420,430 V372"/>                 <!-- STS checks trust -->
+    <path d="M1000,370 V545 H160 V502"/>      <!-- 8 -->
+  </g>
+
+  <!-- badges -->
+  <g font-size="13" font-weight="700" text-anchor="middle" fill="#0f172a">
+    <circle cx="226" cy="235" r="12" fill="#fde047" stroke="#ca8a04"/><text x="226" y="240">1</text>
+    <circle cx="600" cy="315" r="12" fill="#fde047" stroke="#ca8a04"/><text x="600" y="320">2</text>
+    <circle cx="941" cy="235" r="12" fill="#fde047" stroke="#ca8a04"/><text x="941" y="240">3</text>
+    <circle cx="600" cy="175" r="12" fill="#fde047" stroke="#ca8a04"/><text x="600" y="180">4</text>
+    <circle cx="416" cy="235" r="12" fill="#fde047" stroke="#ca8a04"/><text x="416" y="240">5</text>
+    <circle cx="600" cy="448" r="12" fill="#86efac" stroke="#16a34a"/><text x="600" y="453">6</text>
+    <circle cx="600" cy="484" r="12" fill="#86efac" stroke="#16a34a"/><text x="600" y="489">7</text>
+    <circle cx="560" cy="545" r="12" fill="#86efac" stroke="#16a34a"/><text x="560" y="550">8</text>
+  </g>
+  <text x="432" y="405" font-size="12" font-style="italic" fill="#475569">verifies trust policy</text>
+  <text x="700" y="568" font-size="12" font-style="italic" fill="#475569">read / write with temporary credentials</text>
+
+  <!-- step key -->
+  <g font-size="14" fill="#1e293b">
+    <text x="30" y="632" font-weight="700" font-size="15">Steps</text>
+    <text x="30" y="660"><tspan font-weight="700">1</tspan>  CloudFormation creates the bucket and the IAM role. The trust policy is only a placeholder (it trusts your own AWS account).</text>
+    <text x="30" y="684"><tspan font-weight="700">2</tspan>  The role ARN and the ExternalId go into CREATE EXTERNAL VOLUME.</text>
+    <text x="30" y="708"><tspan font-weight="700">3</tspan>  Snowflake generates an IAM user for this volume; read its ARN with DESC EXTERNAL VOLUME.</text>
+    <text x="30" y="732"><tspan font-weight="700">4</tspan>  Copy that ARN into the second deploy (parameter SnowflakeIamUserArn).</text>
+    <text x="30" y="756"><tspan font-weight="700">5</tspan>  CloudFormation updates the trust policy: the role now trusts that Snowflake IAM user, together with the ExternalId.</text>
+    <text x="30" y="780"><tspan font-weight="700">6</tspan>  At run time, Snowflake asks STS to assume the role; STS checks the trust policy.</text>
+    <text x="30" y="804"><tspan font-weight="700">7</tspan>  STS returns temporary credentials to Snowflake.</text>
+    <text x="30" y="828"><tspan font-weight="700">8</tspan>  Snowflake uses the temporary credentials to read and write Iceberg files in S3.</text>
+  </g>
+</svg>

@@ -1,0 +1,408 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Shared VPC for Openflow BYOC (bring your own VPC) and an EC2 instance running
+  the source PostgreSQL of the Air Quality Lakehouse project. The instance
+  bootstraps itself: installs Docker, pulls the repo files from S3, starts
+  PostgreSQL, loads the data and prepares logical replication.
+
+Parameters:
+  PostgresPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    AllowedPattern: "[A-Za-z0-9]+"
+    ConstraintDescription: At least 8 characters, letters and digits only.
+    Description: Password of the PostgreSQL superuser (written to .env on the instance).
+  ReplicatorPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    AllowedPattern: "[A-Za-z0-9]+"
+    ConstraintDescription: At least 8 characters, letters and digits only.
+    Description: Password of the openflow_replicator role used by the Openflow connector.
+  VpcCidr:
+    Type: String
+    Default: 10.20.0.0/16
+  PublicSubnetACidr:
+    Type: String
+    Default: 10.20.0.0/24
+  PublicSubnetBCidr:
+    Type: String
+    Default: 10.20.1.0/24
+  PrivateSubnetACidr:
+    Type: String
+    Default: 10.20.16.0/22
+  PrivateSubnetBCidr:
+    Type: String
+    Default: 10.20.20.0/22
+  InstanceType:
+    Type: String
+    Default: t3.small
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: aq-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: aq-igw
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  # Two public subnets in different availability zones for the Openflow Network Load Balancer.
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Ref PublicSubnetACidr
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: aq-public-a
+        - Key: kubernetes.io/role/elb
+          Value: "1"
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Ref PublicSubnetBCidr
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: aq-public-b
+        - Key: kubernetes.io/role/elb
+          Value: "1"
+
+  # Two private subnets for the Openflow EKS cluster. Private subnet A is "Private Subnet 1" in Openflow.
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Ref PrivateSubnetACidr
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: aq-private-a
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Ref PrivateSubnetBCidr
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: aq-private-b
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: aq-public-rt
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  NatEip:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: aq-nat-eip
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEip.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: aq-nat
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: aq-private-rt
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  # Private path to S3 that bypasses the NAT Gateway (package downloads and transfer files).
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Vpc
+      VpcEndpointType: Gateway
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+
+  # PostgreSQL only accepts connections from the two private subnets, where Openflow runs.
+  PostgresSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Source PostgreSQL for Openflow
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !Ref PrivateSubnetACidr
+          Description: PostgreSQL from private subnet A
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !Ref PrivateSubnetBCidr
+          Description: PostgreSQL from private subnet B
+      Tags:
+        - Key: Name
+          Value: aq-postgres-sg
+
+  # Security group for the Openflow BYOC template (parameter PrivateSecurityGroup).
+  # Members talk to each other freely; all outbound traffic is allowed by default.
+  OpenflowSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Openflow BYOC private components
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: aq-openflow-sg
+
+  OpenflowSecurityGroupSelfIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref OpenflowSecurityGroup
+      IpProtocol: "-1"
+      SourceSecurityGroupId: !Ref OpenflowSecurityGroup
+      Description: All traffic between Openflow components
+
+  # Both passwords live in Secrets Manager. The instance reads them at boot,
+  # so they never appear in the user data script.
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: PostgreSQL credentials for the Air Quality Lakehouse source database
+      SecretString: !Sub '{"postgres_password":"${PostgresPassword}","replicator_password":"${ReplicatorPassword}"}'
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: bootstrap-postgres
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub arn:aws:s3:::aq-lakehouse-${AWS::AccountId}-${AWS::Region}/postgres-transfer/*
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub arn:aws:s3:::aq-lakehouse-${AWS::AccountId}-${AWS::Region}
+                Condition:
+                  StringLike:
+                    s3:prefix: postgres-transfer/*
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref DbSecret
+              - Effect: Allow
+                Action: cloudformation:SignalResource
+                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  PostgresInstance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - PrivateDefaultRoute
+      - S3GatewayEndpoint
+    # The stack only reaches CREATE_COMPLETE when the bootstrap script signals success.
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT25M
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      SubnetId: !Ref PrivateSubnetA
+      SecurityGroupIds:
+        - !Ref PostgresSecurityGroup
+      IamInstanceProfile: !Ref InstanceProfile
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -Eeuo pipefail
+          exec > >(tee -a /var/log/aq-bootstrap.log) 2>&1
+
+          signal() {
+            /opt/aws/bin/cfn-signal -e "$1" --stack "${AWS::StackName}" --resource PostgresInstance --region "${AWS::Region}" || true
+          }
+          trap 'signal 1' ERR
+
+          # 1. Docker and Docker Compose
+          dnf install -y docker aws-cfn-bootstrap
+          systemctl enable --now docker
+          mkdir -p /usr/local/lib/docker/cli-plugins
+          curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+          chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+          # 2. Repo files from S3
+          mkdir -p /opt/aq
+          aws s3 sync s3://aq-lakehouse-${AWS::AccountId}-${AWS::Region}/postgres-transfer/ /opt/aq/ --region ${AWS::Region}
+          test -f /opt/aq/docker-compose.yml
+          test -f /opt/aq/postgres/01_schema.sql
+          test -f /opt/aq/postgres/02_load_kaggle.sql
+          test -f /opt/aq/postgres/03_replication.sql
+          test -f /opt/aq/postgres/data/historical_air_quality_2021_en.csv
+          cd /opt/aq
+          mkdir -p teardown
+
+          # 3. Passwords from Secrets Manager
+          SECRET=$(aws secretsmanager get-secret-value --secret-id ${DbSecret} --region ${AWS::Region} --query SecretString --output text)
+          PG_PASSWORD=$(printf '%s' "$SECRET" | python3 -c 'import json,sys; print(json.load(sys.stdin)["postgres_password"])')
+          REP_PASSWORD=$(printf '%s' "$SECRET" | python3 -c 'import json,sys; print(json.load(sys.stdin)["replicator_password"])')
+          umask 077
+          printf 'POSTGRES_PASSWORD=%s\n' "$PG_PASSWORD" > .env
+
+          # 4. Start PostgreSQL and wait until it is healthy
+          docker compose up -d
+          status=starting
+          for i in $(seq 1 60); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' aq-postgres 2>/dev/null || true)
+            if [ "$status" = "healthy" ]; then break; fi
+            sleep 5
+          done
+          test "$status" = "healthy"
+
+          # 5. Schema, data and logical replication
+          docker exec aq-postgres psql -v ON_ERROR_STOP=1 -U postgres -d airquality -f /workspace/postgres/01_schema.sql
+          docker exec aq-postgres psql -v ON_ERROR_STOP=1 -U postgres -d airquality -v csv_path=/workspace/postgres/data/historical_air_quality_2021_en.csv -f /workspace/postgres/02_load_kaggle.sql
+          docker exec aq-postgres psql -v ON_ERROR_STOP=1 -U postgres -d airquality -v replicator_password="$REP_PASSWORD" -f /workspace/postgres/03_replication.sql
+
+          # 6. Checks: fail the stack if replication is not ready
+          WAL=$(docker exec aq-postgres psql -U postgres -d airquality -tAc "SHOW wal_level")
+          PUBS=$(docker exec aq-postgres psql -U postgres -d airquality -tAc "SELECT count(*) FROM pg_publication_tables WHERE pubname = 'openflow_aq_pub'")
+          test "$WAL" = "logical"
+          test "$PUBS" = "2"
+
+          signal 0
+      Tags:
+        - Key: Name
+          Value: aq-postgres
+
+Outputs:
+  VpcId:
+    Description: VPC for Openflow (Bring your own VPC)
+    Value: !Ref Vpc
+  PublicSubnetAId:
+    Description: Public subnet 1 for Openflow
+    Value: !Ref PublicSubnetA
+  PublicSubnetBId:
+    Description: Public subnet 2 for Openflow
+    Value: !Ref PublicSubnetB
+  PrivateSubnetAId:
+    Description: Private subnet 1 for Openflow
+    Value: !Ref PrivateSubnetA
+  PrivateSubnetBId:
+    Description: Private subnet 2 for Openflow
+    Value: !Ref PrivateSubnetB
+  OpenflowSecurityGroupId:
+    Description: Value for the PrivateSecurityGroup parameter of the Openflow template
+    Value: !Ref OpenflowSecurityGroup
+  InstanceId:
+    Description: EC2 instance running PostgreSQL, connect with Session Manager
+    Value: !Ref PostgresInstance
+  PostgresPrivateIp:
+    Description: Host to enter in the Openflow PostgreSQL connector
+    Value: !GetAtt PostgresInstance.PrivateIp
+  NatPublicIp:
+    Description: Egress IP of Openflow, needed only if Snowflake uses a network policy
+    Value: !GetAtt NatEip.PublicIp
+  DbSecretArn:
+    Description: Secrets Manager secret with the PostgreSQL and replicator passwords
+    Value: !Ref DbSecret
