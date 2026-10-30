@@ -1,0 +1,22 @@
+# Soda connection for the Write-Audit-Publish pipeline.
+#
+# Values come from environment variables (see .env.example). wap/02_audit.py
+# loads .env before Soda reads this file.
+#
+# Soda is pointed at the CANDIDATE schema, so the dataset names in the checks
+# file (FACT_AQI, DIM_STATION) mean SILVER_CANDIDATE.FACT_AQI and
+# SILVER_CANDIDATE.DIM_STATION. Checks that need other schemas use fully
+# qualified names inside their SQL.
+#
+# Key-pair authentication (SNOWFLAKE_JWT): no password and no MFA prompt, so the
+# pipeline can run unattended.
+data_source aq:
+  type: snowflake
+  account: ${SNOWFLAKE_ACCOUNT}
+  username: ${SNOWFLAKE_USER}
+  authenticator: SNOWFLAKE_JWT
+  private_key_path: ${SNOWFLAKE_PRIVATE_KEY_PATH}
+  role: ${SNOWFLAKE_ROLE}
+  warehouse: ${SNOWFLAKE_WAREHOUSE}
+  database: AQ_LAKEHOUSE
+  schema: SILVER_CANDIDATE

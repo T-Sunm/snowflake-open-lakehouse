@@ -8,7 +8,8 @@
 --   Part B  after the stack update with SnowflakeIamUserArn (pass 2)
 --
 -- Replace the three <...> values with the stack outputs StorageBaseUrl,
--- RoleArn and ExternalId.
+-- RoleArn and ExternalId. Fill them in only in your Snowsight copy; keep the
+-- <...> placeholders in the repo file.
 -- =============================================================================
 
 -- Part A ----------------------------------------------------------------------
@@ -19,40 +20,32 @@ CREATE EXTERNAL VOLUME IF NOT EXISTS AQ_ICEBERG_VOL
     (
       NAME = 'aq-s3'
       STORAGE_PROVIDER = 'S3'
-      STORAGE_BASE_URL = 's3://aq-lakehouse-733153951784-us-east-2/lakehouse/'          -- e.g. s3://my-bucket/lakehouse/
-      STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::733153951784:role/snowflake-iceberg-aq-iceberg-storage'
-      STORAGE_AWS_EXTERNAL_ID = 'snowflake-open-lakehouse'       -- default: snowflake-open-lakehouse
+      STORAGE_BASE_URL = '<StorageBaseUrl>'             -- e.g. s3://my-bucket/lakehouse/
+      STORAGE_AWS_ROLE_ARN = '<RoleArn>'                -- e.g. arn:aws:iam::<account-id>:role/snowflake-iceberg-aq-iceberg-storage
+      STORAGE_AWS_EXTERNAL_ID = '<ExternalId>'          -- default: snowflake-open-lakehouse
     )
   )
-  ALLOW_WRITES = TRUE                                -- required for Snowflake-managed tables
+  ALLOW_WRITES = TRUE                                   -- required for Snowflake-managed tables
   COMMENT = 'Iceberg storage for snowflake-open-lakehouse';
 
-  COMMENT = 'snowflake-open-lakehouse: Bronze (Openflow), Silver, Gold';
--- No CATALOG here: at database level it names a catalog integration.
--- Snowflake-managed tables declare CATALOG = 'SNOWFLAKE' themselves.
- 
-SHOW PARAMETERS IN DATABASE AQ_LAKEHOUSE
-  ->> SELECT "key", "value", "level"
+-- Copy snowflake_iam_user_arn from this result into the CloudFormation
+-- parameter SnowflakeIamUserArn (second deploy). Its account number belongs to
+-- Snowflake, not to you.
+DESC EXTERNAL VOLUME AQ_ICEBERG_VOL
+  ->> SELECT
+        PARSE_JSON("property_value"):STORAGE_AWS_IAM_USER_ARN::STRING AS snowflake_iam_user_arn,
+        PARSE_JSON("property_value"):STORAGE_AWS_EXTERNAL_ID::STRING  AS external_id
       FROM $1
-      WHERE "key" IN ('EXTERNAL_VOLUME', 'STORAGE_SERIALIZATION_POLICY', 'ICEBERG_VERSION_DEFAULT');
- 
--- Smoke test ------------------------------------------------------------------
-CREATE SCHEMA IF NOT EXISTS AQ_LAKEHOUSE.SMOKE_TEST;
- 
-CREATE OR REPLACE ICEBERG TABLE AQ_LAKEHOUSE.SMOKE_TEST.HELLO_ICEBERG (
-    id    INT,
-    note  STRING
-)
-  CATALOG = 'SNOWFLAKE'
-  BASE_LOCATION = 'smoke_test/hello_iceberg';
- 
-INSERT INTO AQ_LAKEHOUSE.SMOKE_TEST.HELLO_ICEBERG VALUES (1, 'written by Snowflake');
- 
-SELECT * FROM AQ_LAKEHOUSE.SMOKE_TEST.HELLO_ICEBERG;
- 
--- Where the current metadata file lives. Open it in S3 and look for
--- "format-version": 3 to confirm the version default worked.
-SELECT SYSTEM$GET_ICEBERG_TABLE_INFORMATION('AQ_LAKEHOUSE.SMOKE_TEST.HELLO_ICEBERG');
- 
--- Clean up once you have seen the files in S3.
--- DROP SCHEMA AQ_LAKEHOUSE.SMOKE_TEST;
+      WHERE "parent_property" = 'STORAGE_LOCATIONS'
+        AND "property" LIKE 'STORAGE_LOCATION_%';
+
+-- Part B ----------------------------------------------------------------------
+-- Run after the second CloudFormation deploy (TrustReady = true).
+-- Expect "success":true with write, read, list and delete all PASSED.
+-- If it fails, wait about a minute and run it again: trust policy changes take
+-- a few seconds to apply.
+SELECT SYSTEM$VERIFY_EXTERNAL_VOLUME('AQ_ICEBERG_VOL');
+
+-- 02_database.sql runs as SYSADMIN, which needs the volume to set it as a
+-- database default.
+GRANT USAGE ON EXTERNAL VOLUME AQ_ICEBERG_VOL TO ROLE SYSADMIN;

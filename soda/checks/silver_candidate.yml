@@ -1,0 +1,122 @@
+# Audit checks for Silver Candidate.
+#
+# Outcome rules (they decide whether Publish may run):
+#   fail  -> Publish is blocked, Current Silver stays as it is
+#   warn  -> reported and logged, Publish still runs
+#
+# Design of the checks:
+#   * keys must never be null (fail); measurements may be null within a ceiling
+#     (warn), because the real data has ~23% null AQI
+#   * row counts are reconciled against live Bronze rows, so a join that drops
+#     rows silently is caught
+#   * the grain (station, time) and measurement_id are checked for duplicates
+#   * pollution_level must agree with aqi
+#   * freshness is a warning only: the data is a 2021 sample, so "new data
+#     arrived in the last 2 days" cannot be a blocking rule here
+
+checks for FACT_AQI:
+
+  # --- size and reconciliation ------------------------------------------------
+  - row_count >= 10:
+      name: row_count minimum
+
+  - bronze_row_difference = 0:
+      name: candidate rows equal live Bronze rows
+      bronze_row_difference query: |
+        SELECT ABS(
+          (SELECT COUNT(*) FROM AQ_LAKEHOUSE.AQ.MEASUREMENTS WHERE NOT _SNOWFLAKE_DELETED)
+        - (SELECT COUNT(*) FROM AQ_LAKEHOUSE.SILVER_CANDIDATE.FACT_AQI)
+        )
+
+  # --- uniqueness -------------------------------------------------------------
+  - duplicate_count(measurement_id) = 0:
+      name: measurement_id is unique
+
+  - duplicate_count(station_key, measured_at) = 0:
+      name: one row per station and reading time
+
+  # --- keys must never be null (blocking) -------------------------------------
+  - missing_count(measurement_id) = 0
+  - missing_count(date_key) = 0
+  - missing_count(time_key) = 0
+  - missing_count(city_key) = 0
+  - missing_count(station_key) = 0
+  - missing_count(measured_at) = 0
+  - missing_count(source) = 0
+
+  # --- measurements may be null, within a ceiling (warning) -------------------
+  # Real data today: aqi ~22.8%, pm25 ~18.9%, pm10 ~31.5% null.
+  - missing_percent(aqi):
+      name: null percent of aqi
+      warn: when > 30
+  - missing_percent(pm25):
+      name: null percent of pm25
+      warn: when > 30
+  - missing_percent(pm10):
+      name: null percent of pm10
+      warn: when > 40
+
+  # --- valid values -----------------------------------------------------------
+  - invalid_count(aqi) = 0:
+      name: aqi within [0, 500]
+      valid min: 0
+      valid max: 500
+
+  - invalid_count(source) = 0:
+      name: source is kaggle or api
+      valid values: [kaggle, api]
+
+  - negative_pollutant_rows = 0:
+      name: pollutant and weather values are not negative
+      negative_pollutant_rows query: |
+        SELECT COUNT(*)
+        FROM AQ_LAKEHOUSE.SILVER_CANDIDATE.FACT_AQI
+        WHERE pm25 < 0 OR pm10 < 0 OR co < 0 OR no2 < 0 OR o3 < 0 OR so2 < 0
+           OR humidity < 0 OR pressure < 0
+
+  # --- business rule ----------------------------------------------------------
+  - pollution_level_mismatch = 0:
+      name: pollution_level agrees with aqi
+      pollution_level_mismatch query: |
+        SELECT COUNT(*)
+        FROM AQ_LAKEHOUSE.SILVER_CANDIDATE.FACT_AQI
+        WHERE NOT EQUAL_NULL(pollution_level, AQ_LAKEHOUSE.SILVER.AQI_CATEGORY(aqi))
+
+  # --- referential integrity --------------------------------------------------
+  - orphan_fact_rows = 0:
+      name: every fact row resolves to all four dimensions
+      orphan_fact_rows query: |
+        SELECT COUNT(*)
+        FROM AQ_LAKEHOUSE.SILVER_CANDIDATE.FACT_AQI f
+        LEFT JOIN AQ_LAKEHOUSE.SILVER.DIM_DATE d             ON d.date_key    = f.date_key
+        LEFT JOIN AQ_LAKEHOUSE.SILVER.DIM_TIME t             ON t.time_key    = f.time_key
+        LEFT JOIN AQ_LAKEHOUSE.SILVER.DIM_CITY c             ON c.city_key    = f.city_key
+        LEFT JOIN AQ_LAKEHOUSE.SILVER_CANDIDATE.DIM_STATION s ON s.station_key = f.station_key
+        WHERE d.date_key IS NULL OR t.time_key IS NULL
+           OR c.city_key IS NULL OR s.station_key IS NULL
+
+  - city_mismatch_rows = 0:
+      name: fact city equals the city of its station
+      city_mismatch_rows query: |
+        SELECT COUNT(*)
+        FROM AQ_LAKEHOUSE.SILVER_CANDIDATE.FACT_AQI f
+        JOIN AQ_LAKEHOUSE.SILVER_CANDIDATE.DIM_STATION s ON s.station_key = f.station_key
+        WHERE s.city_key <> f.city_key
+
+  - missing_cities = 0:
+      name: every reference city appears in the fact table
+      missing_cities query: |
+        SELECT COUNT(*)
+        FROM AQ_LAKEHOUSE.CONTROL.CITY_REFERENCE r
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM AQ_LAKEHOUSE.SILVER_CANDIDATE.FACT_AQI f
+          JOIN AQ_LAKEHOUSE.SILVER.DIM_CITY c ON c.city_key = f.city_key
+          WHERE c.city_slug = r.city_slug
+        )
+
+  # --- freshness (warning only) -----------------------------------------------
+  # ingested_at is when Bronze last changed the row, not when it was measured.
+  - freshness(ingested_at):
+      name: Bronze changed recently
+      warn: when > 2d
