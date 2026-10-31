@@ -3,6 +3,7 @@ name = "snowflake-open-lakehouse"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "duckdb>=2.0.0",
     "python-dotenv>=1.2.4",
     "setuptools>=84.2.1",
     "snowflake-connector-python>=3.18.1",

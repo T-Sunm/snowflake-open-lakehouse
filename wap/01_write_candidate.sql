@@ -26,7 +26,12 @@ USE ROLE openflow_admin;
 USE WAREHOUSE AQ_WH;
 USE DATABASE AQ_LAKEHOUSE;
 
-CREATE SCHEMA IF NOT EXISTS SILVER_CANDIDATE;
+-- The candidate is a working copy, rebuilt on every run, so it keeps no Time
+-- Travel history: a replaced clone is removed instead of lingering as a dropped
+-- table. (External engines reading through Horizon are refused vended credentials
+-- for a table whose clones they cannot access; see snowflake/05_horizon_access.sql.)
+CREATE SCHEMA IF NOT EXISTS SILVER_CANDIDATE DATA_RETENTION_TIME_IN_DAYS = 0;
+ALTER SCHEMA SILVER_CANDIDATE SET DATA_RETENTION_TIME_IN_DAYS = 0;
 USE SCHEMA AQ_LAKEHOUSE.SILVER_CANDIDATE;
 
 -- -----------------------------------------------------------------------------

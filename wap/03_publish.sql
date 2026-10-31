@@ -23,11 +23,6 @@
 --
 -- The candidate is a clone of Current Silver, so both tables have identical
 -- columns and SELECT * is safe here.
---
--- Rollback (Time Travel keeps the previous version for 1 day by default):
---   find the query id of the publish statement in Query History, then
---   INSERT OVERWRITE INTO SILVER.FACT_AQI
---     SELECT * FROM SILVER.FACT_AQI BEFORE (STATEMENT => '<query_id>');
 -- =============================================================================
 
 USE ROLE openflow_admin;
@@ -76,5 +71,4 @@ FROM SILVER.FACT_AQI f
 JOIN SILVER.DIM_CITY c ON c.city_key = f.city_key
 JOIN SILVER.DIM_DATE d ON d.date_key = f.date_key
 GROUP BY c.city_name, d.season
-ORDER BY readings DESC
-LIMIT 10;
+ORDER BY readings DESC;

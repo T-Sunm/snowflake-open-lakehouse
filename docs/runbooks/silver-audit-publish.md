@@ -95,6 +95,6 @@ Chạy từng câu ở cuối file (sau dòng `-- CHECKS`):
 
 **C. Silver và candidate giống hệt nhau.** `differing_rows` phải là `0`.
 
-**D. Star schema trả lời được câu hỏi từ đầu đến cuối.** Câu truy vấn gom theo thành phố và mùa, trả về tối đa 10 dòng, thấy đủ 11 thành phố trong dữ liệu, Hà Nội có nhiều lượt đo nhất. Nha Trang có `avg_aqi` rỗng: trạm này không có số đo AQI nào (0 trên 113 dòng). Silver vẫn giữ các dòng đó, vì chúng là dữ liệu thật; Gold sẽ xử lý riêng (xem `gold-iceberg.md`). Huế, Hạ Long và Lào Cai cũng rất ít dữ liệu AQI.
+**D. Star schema trả lời được câu hỏi từ đầu đến cuối.** Câu truy vấn gom theo thành phố và mùa, sắp theo số lượt đo giảm dần: đủ 11 thành phố xuất hiện, Hà Nội có nhiều lượt đo nhất. Nha Trang có `avg_aqi` rỗng: trạm này không có số đo AQI nào (0 trên 113 dòng). Silver vẫn giữ các dòng đó, vì chúng là dữ liệu thật; Gold sẽ xử lý riêng (xem `gold-iceberg.md`). Huế, Hạ Long và Lào Cai cũng rất ít dữ liệu AQI.
 
 Bước này hoàn thành khi A, B, C khớp và D trả về kết quả theo từng thành phố. Tiếp theo là `gold-iceberg.md`.

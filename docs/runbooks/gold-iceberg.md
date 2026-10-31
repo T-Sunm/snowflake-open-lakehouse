@@ -77,7 +77,7 @@ SELECT
 
 Kết quả: sáu số đều là **2117**.
 
-**B. Xếp hạng tháng 1/2021.** Câu truy vấn ở mục B cuối `wap/04_load_gold.sql`: mỗi tháng xếp hạng thành phố từ 1, còn Nha Trang có `aqi_rank` rỗng và đứng cuối danh sách.
+**B. Xếp hạng tháng 1/2021.** Câu truy vấn ở mục B cuối `wap/04_load_gold.sql`: mỗi tháng xếp hạng thành phố từ 1. Tháng 1/2021 có 11 thành phố, hạng từ 1 đến 9; Đà Nẵng và Nha Trang không có AQI trong tháng này nên `aqi_rank` rỗng và hai thành phố đứng cuối danh sách.
 
 **C. Mùa không bị cắt ở năm mới.** Mục C cuối `wap/04_load_gold.sql`, với Hà Nội, phải cho ba dòng:
 
@@ -109,4 +109,4 @@ Bước này hoàn thành khi sáu số ở mục A đều là 2117 và mục E 
 
 Nha Trang không có AQI hay PM2.5 nào (0 trên 113 dòng). Huế, Hạ Long và Lào Cai chỉ có rất ít dữ liệu AQI. Silver giữ nguyên các dòng này, còn Gold không xếp hạng những thành phố đó ở những tháng không có trung bình.
 
-Tiếp theo là phần Horizon Catalog và DuckDB.
+Tiếp theo là `horizon-access.md` (Horizon Catalog và quyền truy cập), rồi `duckdb-read-write.md`.

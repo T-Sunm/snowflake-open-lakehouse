@@ -352,4 +352,4 @@ Xóa các file `$HOME\.ssh\aq_agent`, `$HOME\.ssh\aq_agent.pub` và `infra/cloud
 
 Các đối tượng Snowflake (`AQ_OPENFLOW`, role, secret, bảng Bronze) được giữ lại và dùng lại được ở lần dựng sau.
 
-Dừng tại đây. Bước tiếp theo là tầng Silver trên các bảng `AQ_LAKEHOUSE.AQ`.
+Dừng tại đây. Bước tiếp theo là tầng Silver trên các bảng `AQ_LAKEHOUSE.AQ`, trong `silver-candidate.md`.

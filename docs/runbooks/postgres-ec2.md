@@ -67,6 +67,7 @@ aws cloudformation describe-stacks --stack-name aq-postgres-ec2 --region us-east
 | `VpcId` | Chọn VPC khi tạo deployment Openflow |
 | `PublicSubnetAId`, `PublicSubnetBId` | Hai public subnet của Openflow |
 | `PrivateSubnetAId`, `PrivateSubnetBId` | Hai private subnet của Openflow |
+| `OpenflowSecurityGroupId` | Tham số `PrivateSecurityGroup` khi deploy template Openflow |
 | `NatPublicIp` | Chỉ cần nếu Snowflake có network policy |
 | `DbSecretArn` | Secret chứa hai mật khẩu |
 

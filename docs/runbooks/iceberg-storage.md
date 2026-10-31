@@ -131,4 +131,4 @@ Xem xong, xóa bảng thử trong Snowsight:
 DROP SCHEMA AQ_LAKEHOUSE.SMOKE_TEST;
 ```
 
-Dừng tại đây. Bước tiếp theo là triển khai Openflow BYOC trong `us-east-2`. Khi tạm dừng project, giữ nguyên stack `aq-iceberg-storage`: S3 gần như không tốn phí, và giữ stack thì không phải làm lại hai lần deploy.
+Dừng tại đây. Bước tiếp theo là dựng PostgreSQL nguồn và VPC trong `postgres-ec2.md`, rồi triển khai Openflow BYOC trong `openflow-byoc.md`. Khi tạm dừng project, giữ nguyên stack `aq-iceberg-storage`: S3 gần như không tốn phí, và giữ stack thì không phải làm lại hai lần deploy.

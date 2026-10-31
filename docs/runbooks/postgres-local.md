@@ -1,5 +1,7 @@
 # PostgreSQL local
 
+> Runbook này dựng PostgreSQL trên máy bạn để thử script và xem dữ liệu. Openflow BYOC chạy trong VPC trên AWS nên **không kết nối được** tới Docker trên máy bạn. Luồng CDC của tutorial dùng PostgreSQL trên EC2 (`postgres-ec2.md`).
+
 Chạy từ thư mục gốc của repo. Các lệnh dưới đây chuẩn bị PostgreSQL nguồn và nạp dữ liệu trước khi tạo connector Openflow.
 
 ## Khởi động PostgreSQL
@@ -53,4 +55,4 @@ docker exec -it aq-postgres psql -U postgres -d airquality -c "ALTER ROLE openfl
 
 Chỉ dùng mật khẩu mới khi lệnh đổi mật khẩu trả về `ALTER ROLE`.
 
-Dừng tại đây. Chỉ chạy `04_cdc_insert.sql`, `05_cdc_update.sql` và `06_cdc_delete.sql` sau khi connector đã hoàn tất initial snapshot.
+Dừng tại đây. Các script `04_cdc_insert.sql`, `05_cdc_update.sql` và `06_cdc_delete.sql` thuộc phần CDC và chạy trên PostgreSQL ở EC2, sau khi connector đã hoàn tất initial snapshot (xem `openflow-byoc.md`).

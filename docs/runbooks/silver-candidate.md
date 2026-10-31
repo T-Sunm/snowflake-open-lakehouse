@@ -94,6 +94,8 @@ Silver hiện tại --clone--> Candidate --MERGE với Bronze--> Candidate (đã
 ```
 
 1. Tạo schema `SILVER_CANDIDATE`. Clone `DIM_STATION` và `FACT_AQI` từ Silver hiện tại bằng `CREATE OR REPLACE ICEBERG TABLE ... CLONE`. Clone không sao chép dữ liệu, chỉ dùng chung storage với bảng gốc. Chỉ hai bảng này được clone vì chúng đi theo Bronze; `DIM_DATE`, `DIM_TIME`, `DIM_CITY` là dữ liệu lịch và tham chiếu, được đọc thẳng từ `SILVER`.
+
+   Schema `SILVER_CANDIDATE` được tạo với `DATA_RETENTION_TIME_IN_DAYS = 0`, nghĩa là không giữ lịch sử Time Travel. Candidate chỉ là bản làm việc, được dựng lại từ đầu mỗi lần chạy, nên không cần giữ các bản clone cũ. Lý do thực tế liên quan đến phần Horizon: nếu mỗi bản clone bị thay thế vẫn nằm lại trong Time Travel, DuckDB đọc `SILVER.FACT_AQI` và `SILVER.DIM_STATION` qua Horizon sẽ nhận lỗi `403 Authorization failed` khi xin khóa S3 tạm thời. Đặt retention 0 thì bản clone cũ bị xóa hẳn. Cơ chế này là suy luận từ những gì quan sát được, không phải điều tài liệu Snowflake xác nhận; chi tiết nằm ở mục "Clone, vended credentials và schema SILVER_CANDIDATE" trong `horizon-access.md`.
 2. `MERGE` vào `DIM_STATION` từ `AQ.STATIONS`, thành phố lấy từ URL.
 3. `MERGE` vào `FACT_AQI` từ `AQ.MEASUREMENTS`, nối với `DIM_STATION` của candidate, `DIM_DATE` (theo ngày giờ Việt Nam) và `DIM_TIME` (theo giờ):
 
