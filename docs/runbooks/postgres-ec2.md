@@ -49,10 +49,10 @@ Lệnh cuối phải liệt kê `docker-compose.yml`, các script `01` đến `0
 ## 2. Deploy stack
 
 ```bash
-aws cloudformation deploy --template-file infra/cloudformation/postgres-ec2.yaml --stack-name aq-postgres-ec2 --capabilities CAPABILITY_IAM --region us-east-2 --parameter-overrides PostgresPassword=<postgres-password> ReplicatorPassword=<replicator-password>
+aws cloudformation deploy --template-file infra/cloudformation/postgres-ec2.yaml --stack-name aq-postgres-ec2 --capabilities CAPABILITY_IAM --region us-east-2 --parameter-overrides PostgresPassword=postgres123 ReplicatorPassword=replicator123
 ```
 
-Hai mật khẩu phải từ 8 ký tự trở lên, chỉ gồm chữ cái và chữ số. `ReplicatorPassword` là mật khẩu role `openflow_replicator`, sẽ nhập vào connector Openflow. Lần deploy mất khoảng 8 đến 12 phút, phần lớn là chờ NAT Gateway và EC2 chạy script khởi động.
+Hai mật khẩu trên chỉ dành cho tutorial: EC2 nằm trong private subnet, security group chỉ nhận cổng 5432 từ hai private subnet, và stack bị xóa khi dọn dẹp. Template yêu cầu từ 8 ký tự trở lên, chỉ gồm chữ cái và chữ số. Nếu làm ngoài môi trường thử nghiệm, hãy tự đặt mật khẩu mạnh. `ReplicatorPassword` là mật khẩu role `openflow_replicator`, sẽ dùng khi tạo secret cho Openflow.
 
 Xem các giá trị đầu ra:
 

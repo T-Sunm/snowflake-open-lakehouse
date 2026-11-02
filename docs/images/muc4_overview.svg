@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="530" viewBox="0 0 920 530" font-family="Figtree, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="ah" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><polygon points="0,0 11,4.5 0,9" fill="#141414"/></marker>
+  </defs>
+  <rect width="920" height="530" fill="#FBFAF7"/>
+
+  <!-- Title -->
+  <rect x="40" y="42" width="8" height="72" fill="#2F9E5B"/>
+  <text x="64" y="82" font-size="40" font-weight="900" fill="#141414">External engines see only granted tables</text>
+  <text x="64" y="108" font-size="16" fill="#57534E">Access shown for the external role. Silver and Gold are read only, and Bronze stays hidden</text>
+
+  <!-- Zone: tables on S3 -->
+  <rect x="40" y="386" width="840" height="122" rx="16" fill="#F3F1EA" stroke="#141414" stroke-width="1.5" stroke-dasharray="7 6"/>
+  <text x="56" y="408" font-size="13" font-weight="700" fill="#57534E">Iceberg tables on S3</text>
+
+  <!-- Arrows (under cards) -->
+  <g fill="none" stroke="#141414" stroke-width="2">
+    <path d="M172 226 V386" marker-end="url(#ah)"/>
+    <path d="M470 226 V268" marker-end="url(#ah)"/>
+    <path d="M604 344 V386" marker-end="url(#ah)"/>
+  </g>
+
+  <!-- Engine and catalog cards -->
+  <g stroke="#141414" stroke-width="2">
+    <rect x="40" y="150" width="264" height="76" rx="11" fill="#FFFFFF"/>
+    <rect x="328" y="150" width="552" height="76" rx="11" fill="#FFFFFF"/>
+    <rect x="328" y="268" width="552" height="76" rx="11" fill="#D8EFEA"/>
+  </g>
+
+  <!-- Table cards -->
+  <g stroke="#141414" stroke-width="2">
+    <rect x="56" y="420" width="258" height="76" rx="11" fill="#8EE4AF"/>
+    <rect x="331" y="420" width="258" height="76" rx="11" fill="#F8D3A0"/>
+    <rect x="606" y="420" width="258" height="76" rx="11" fill="#A9CFF5" stroke-dasharray="6 5"/>
+  </g>
+
+  <!-- Chips and pills -->
+  <g stroke-width="1.5" fill="#FFFFFF">
+    <rect x="200" y="176" width="88" height="24" rx="12" stroke="#141414"/>
+    <rect x="535" y="176" width="171" height="24" rx="12" stroke="#141414"/>
+    <rect x="718" y="176" width="146" height="24" rx="12" stroke="#141414"/>
+    <rect x="528" y="294" width="71" height="24" rx="12" stroke="#141414"/>
+    <rect x="611" y="294" width="133" height="24" rx="12" stroke="#141414"/>
+    <rect x="756" y="294" width="108" height="24" rx="12" stroke="#141414"/>
+    <rect x="210" y="446" width="88" height="24" rx="12" stroke="#2B6CB0"/>
+    <rect x="485" y="446" width="88" height="24" rx="12" stroke="#2B6CB0"/>
+    <rect x="768" y="446" width="80" height="24" rx="12" stroke="#D6336C"/>
+  </g>
+
+  <!-- Icon placeholders: replace each with an icon (28x28) -->
+  <g fill="none" stroke="#141414" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="3 3">
+    <rect id="icon-snowflake" x="52" y="174" width="28" height="28" rx="6"/>
+    <rect id="icon-duckdb" x="344" y="174" width="28" height="28" rx="6"/>
+    <rect id="icon-horizon" x="344" y="292" width="28" height="28" rx="6"/>
+    <rect id="icon-silver" x="68" y="444" width="28" height="28" rx="6"/>
+    <rect id="icon-gold" x="343" y="444" width="28" height="28" rx="6"/>
+    <rect id="icon-bronze-tables" x="618" y="444" width="28" height="28" rx="6"/>
+  </g>
+
+  <!-- Card text -->
+  <g fill="#141414">
+    <text x="92" y="180" font-size="14" font-weight="800">Snowflake</text>
+    <text x="92" y="198" font-size="12">Owns the tables</text>
+
+    <text x="384" y="180" font-size="14" font-weight="800">DuckDB</text>
+    <text x="384" y="198" font-size="12">External engine</text>
+
+    <text x="384" y="298" font-size="14" font-weight="800">Horizon Catalog</text>
+    <text x="384" y="316" font-size="12">Iceberg catalog</text>
+
+    <text x="108" y="450" font-size="14" font-weight="800">Silver tables</text>
+    <text x="108" y="468" font-size="12">Star schema</text>
+
+    <text x="383" y="450" font-size="14" font-weight="800">Gold tables</text>
+    <text x="383" y="468" font-size="12">Aggregates</text>
+
+    <text x="658" y="450" font-size="14" font-weight="800">Bronze tables</text>
+    <text x="658" y="468" font-size="12">Raw, CDC applied</text>
+  </g>
+
+  <!-- Chip and pill text -->
+  <g font-size="12" font-weight="700" text-anchor="middle" fill="#141414">
+    <text x="244" y="192">Internal</text>
+    <text x="620" y="192">Authenticates with a PAT</text>
+    <text x="791" y="192">Reads files directly</text>
+    <text x="563" y="310">REST API</text>
+    <text x="677" y="310">Checks role grants</text>
+    <text x="810" y="310">Issues S3 keys</text>
+    <text x="254" y="462" fill="#2B6CB0">Read only</text>
+    <text x="529" y="462" fill="#2B6CB0">Read only</text>
+    <text x="808" y="462" fill="#D6336C">Not visible</text>
+  </g>
+
+  <!-- Arrow labels -->
+  <g font-size="12" fill="#141414">
+    <text x="184" y="286" font-weight="700">Full access</text>
+    <text x="184" y="304">Silver and Gold change</text>
+    <text x="184" y="322">only through</text>
+    <text x="184" y="340">Write-Audit-Publish</text>
+    <text x="482" y="252" font-weight="700">REST call</text>
+    <text x="616" y="370" font-weight="700">Only granted tables</text>
+  </g>
+</svg>

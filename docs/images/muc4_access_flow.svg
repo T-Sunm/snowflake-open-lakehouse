@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="468" viewBox="0 0 920 468" font-family="Figtree, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="ah" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><polygon points="0,0 11,4.5 0,9" fill="#141414"/></marker>
+    <marker id="ahp" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><polygon points="0,0 11,4.5 0,9" fill="#D6336C"/></marker>
+  </defs>
+  <rect width="920" height="468" fill="#FBFAF7"/>
+  <rect x="40" y="42" width="8" height="72" fill="#2F9E5B"/>
+  <text x="64" y="82" font-size="40" font-weight="900" fill="#141414">S3 keys go only to granted roles</text>
+  <text x="64" y="108" font-size="16" fill="#57534E">Horizon checks the role before it returns anything</text>
+
+  <rect x="40" y="146" width="840" height="144" rx="14" fill="#F3F1EA" stroke="#141414" stroke-width="1.5"/>
+  <rect x="104" y="318" width="464" height="110" rx="14" fill="#E6F4F1" stroke="#141414" stroke-width="1.5"/>
+  <rect x="704" y="318" width="176" height="110" rx="14" fill="#F3F1EA" stroke="#141414" stroke-width="1.5" stroke-dasharray="7 6"/>
+
+  <g fill="none" stroke="#141414" stroke-width="2">
+    <path d="M308 236 H332" marker-end="url(#ah)"/>
+    <path d="M420 278 V332" marker-end="url(#ah)"/>
+    <path d="M552 374 H680 V278" marker-end="url(#ah)"/>
+    <path d="M790 278 V318" marker-end="url(#ah)"/>
+    <path d="M368 391 H344" stroke="#D6336C" stroke-dasharray="6 5" marker-end="url(#ahp)"/>
+  </g>
+  <g stroke="#141414" stroke-width="2">
+    <rect x="52" y="194" width="256" height="84" rx="11" fill="#FFFFFF"/>
+    <rect x="332" y="194" width="256" height="84" rx="11" fill="#FFFFFF"/>
+    <rect x="612" y="194" width="256" height="84" rx="11" fill="#FFFFFF"/>
+    <rect x="368" y="332" width="184" height="84" rx="11" fill="#FFFFFF"/>
+    <rect x="116" y="366" width="228" height="50" rx="11" fill="#FFC9BA" stroke="#D6336C" stroke-dasharray="6 5"/>
+  </g>
+  <g fill="none" stroke="#141414" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="3 3">
+    <rect id="icon-duckdb" x="52" y="152" width="28" height="28" rx="6"/>
+    <rect id="icon-horizon" x="116" y="324" width="28" height="28" rx="6"/>
+    <rect id="icon-s3" x="716" y="324" width="28" height="28" rx="6"/>
+    <rect id="icon-request-refused" x="126" y="377" width="28" height="28" rx="6"/>
+  </g>
+  <g fill="#141414" font-size="14" font-weight="800">
+    <text x="88" y="171">DuckDB</text>
+    <text x="152" y="343">Horizon</text>
+    <text x="752" y="343">S3</text>
+  </g>
+  <g stroke="#141414" stroke-width="2" fill="#FFFFFF">
+    <circle cx="74" cy="218" r="12"/><circle cx="354" cy="218" r="12"/><circle cx="634" cy="218" r="12"/><circle cx="390" cy="356" r="12"/>
+  </g>
+  <g fill="#141414" font-size="14" font-weight="800" text-anchor="middle">
+    <text x="74" y="223">1</text><text x="354" y="223">2</text><text x="634" y="223">4</text><text x="390" y="361">3</text>
+  </g>
+  <g fill="#141414">
+    <text x="94" y="223" font-size="14" font-weight="800">Exchange the PAT</text>
+    <text x="64" y="248" font-size="12">Returns a short-lived</text>
+    <text x="64" y="266" font-size="12">access token</text>
+    <text x="374" y="223" font-size="14" font-weight="800">Request the table</text>
+    <text x="344" y="248" font-size="12">Loads the table with</text>
+    <text x="344" y="266" font-size="12">vended credentials</text>
+    <text x="654" y="223" font-size="14" font-weight="800">Read the files</text>
+    <text x="624" y="248" font-size="12">Reads Parquet files using</text>
+    <text x="624" y="266" font-size="12">those S3 keys</text>
+    <text x="410" y="361" font-size="14" font-weight="800">Check the role</text>
+    <text x="380" y="386" font-size="12">Returns metadata and</text>
+    <text x="380" y="404" font-size="12">temporary S3 keys</text>
+    <text x="716" y="386" font-size="14" font-weight="800">Parquet files</text>
+    <text x="716" y="404" font-size="12">Iceberg table data</text>
+    <text x="164" y="386" font-size="14" font-weight="800">Request refused</text>
+    <text x="164" y="404" font-size="12">Role lacks grants, so no keys</text>
+  </g>
+</svg>

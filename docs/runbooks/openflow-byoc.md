@@ -15,66 +15,29 @@ Các lệnh `aws` trong runbook được viết cho PowerShell. Các lệnh SQL 
 
 Openflow không cho phép đăng nhập bằng `ACCOUNTADMIN` hoặc các role quản trị khác, nên các thao tác Openflow dùng role riêng `openflow_admin`. Runtime chạy dưới role `OPENFLOW_AQ_RUNTIME_EXECUTE_AS_RL`, cần quyền ghi vào `AQ_LAKEHOUSE` và đọc secret chứa mật khẩu PostgreSQL.
 
-Lấy tên user của bạn:
+Mở `snowflake/02b_openflow_access.sql` trong Snowsight và chạy toàn bộ bằng **Run all** (`Ctrl + Shift + Enter`). File chạy lại được và không cần sửa gì: tên user của bạn được lấy bằng `CURRENT_USER()`. File làm các việc sau:
 
-```sql
-SELECT CURRENT_USER();
-```
-
-Thay `<tên-user>` ở hai dòng cuối bằng kết quả trên, rồi chạy cả khối:
-
-```sql
-USE ROLE ACCOUNTADMIN;
-
--- Role quản trị Openflow
-CREATE ROLE IF NOT EXISTS openflow_admin;
-GRANT CREATE OPENFLOW DEPLOYMENT ON ACCOUNT TO ROLE openflow_admin;
-GRANT CREATE DATABASE ON ACCOUNT TO ROLE openflow_admin;
-GRANT CREATE INTEGRATION ON ACCOUNT TO ROLE openflow_admin;
-
--- Nơi chứa runtime, connector và secret, tách khỏi AQ_LAKEHOUSE
-CREATE DATABASE IF NOT EXISTS AQ_OPENFLOW;
-CREATE SCHEMA IF NOT EXISTS AQ_OPENFLOW.CONTROL;
-GRANT USAGE ON DATABASE AQ_OPENFLOW TO ROLE openflow_admin;
-GRANT USAGE ON SCHEMA AQ_OPENFLOW.CONTROL TO ROLE openflow_admin;
-GRANT CREATE OPENFLOW RUNTIME, CREATE OPENFLOW CONNECTOR, CREATE SECRET
-  ON SCHEMA AQ_OPENFLOW.CONTROL TO ROLE openflow_admin;
-
--- Role mà runtime dùng để ghi Bronze
-CREATE ROLE IF NOT EXISTS OPENFLOW_AQ_RUNTIME_EXECUTE_AS_RL;
-GRANT ROLE OPENFLOW_AQ_RUNTIME_EXECUTE_AS_RL TO ROLE openflow_admin;
-GRANT USAGE ON DATABASE AQ_OPENFLOW TO ROLE OPENFLOW_AQ_RUNTIME_EXECUTE_AS_RL;
-GRANT USAGE ON SCHEMA AQ_OPENFLOW.CONTROL TO ROLE OPENFLOW_AQ_RUNTIME_EXECUTE_AS_RL;
-GRANT USAGE, OPERATE ON WAREHOUSE AQ_WH TO ROLE OPENFLOW_AQ_RUNTIME_EXECUTE_AS_RL;
-GRANT USAGE, CREATE SCHEMA ON DATABASE AQ_LAKEHOUSE TO ROLE OPENFLOW_AQ_RUNTIME_EXECUTE_AS_RL;
-GRANT USAGE ON EXTERNAL VOLUME AQ_ICEBERG_VOL TO ROLE OPENFLOW_AQ_RUNTIME_EXECUTE_AS_RL;
-
--- Trang đăng nhập Openflow dùng role mặc định của user.
--- Role phụ phải để trống, nếu không ACCOUNTADMIN bị gửi kèm và đăng nhập bị chặn.
-GRANT ROLE openflow_admin TO USER <tên-user>;
-ALTER USER <tên-user> SET DEFAULT_ROLE = openflow_admin DEFAULT_SECONDARY_ROLES = ();
-```
-
-Tạo secret chứa mật khẩu của `openflow_replicator` (giá trị `ReplicatorPassword` lúc deploy stack PostgreSQL):
-
-```sql
-USE ROLE openflow_admin;
-USE SCHEMA AQ_OPENFLOW.CONTROL;
-
-CREATE OR REPLACE SECRET aq_pg_replicator_password
-  TYPE = GENERIC_STRING
-  SECRET_STRING = '<replicator-password>';
-
-GRANT READ ON SECRET aq_pg_replicator_password TO ROLE OPENFLOW_AQ_RUNTIME_EXECUTE_AS_RL;
-```
-
-Runtime cần quyền `READ` trên secret để lấy mật khẩu. Quyền `USAGE` không đủ.
+1. Tạo role `openflow_admin` và cấp quyền tạo deployment, database và integration.
+2. Tạo database `AQ_OPENFLOW` và schema `CONTROL`, nơi chứa runtime, connector và secret, tách khỏi `AQ_LAKEHOUSE`.
+3. Tạo role `OPENFLOW_AQ_RUNTIME_EXECUTE_AS_RL` cho runtime, cấp quyền dùng `AQ_OPENFLOW.CONTROL`, warehouse `AQ_WH`, `AQ_LAKEHOUSE` (kèm quyền tạo schema, vì connector tạo schema `AQ`) và external volume `AQ_ICEBERG_VOL`.
+4. Gán `openflow_admin` cho user của bạn và đặt làm role mặc định. Role phụ phải để trống, nếu không `ACCOUNTADMIN` bị gửi kèm và trang đăng nhập Openflow bị chặn.
+5. Tạo secret `aq_pg_replicator_password` chứa mật khẩu của `openflow_replicator` (giá trị `replicator123` lúc deploy stack PostgreSQL), rồi cấp `READ` trên secret cho role runtime. Runtime cần `READ` để lấy mật khẩu, quyền `USAGE` không đủ. `CREATE OR REPLACE` làm mất các quyền đã cấp trước đó, nên file luôn cấp lại `READ` sau khi tạo secret.
 
 Đăng xuất rồi đăng nhập lại Snowsight để role mới có hiệu lực. Góc dưới bên trái phải hiện `OPENFLOW_ADMIN`.
 
+Kiểm tra (chạy trong một file SQL mới; biến `$me` chỉ tồn tại trong phiên đã khai báo nó nên phải `SET` lại):
+
+```sql
+SET me = CURRENT_USER();
+SHOW GRANTS TO USER IDENTIFIER($me);
+SHOW SECRETS IN SCHEMA AQ_OPENFLOW.CONTROL;
+```
+
+Kết quả đúng: `SHOW GRANTS` có dòng `OPENFLOW_ADMIN`, `SHOW SECRETS` có `AQ_PG_REPLICATOR_PASSWORD` với chủ sở hữu `OPENFLOW_ADMIN`.
+
 ## 2. Tạo deployment
 
-1. Vào **Ingestion** → **Openflow** → tab **Deployments** → **Create deployment**.
+1. Trong Snowsight, dùng role `OPENFLOW_ADMIN`, vào **Ingestion** → **Openflow**. Lần đầu, trang hiện nút **Launch Openflow**; bấm nút này để mở giao diện Openflow. Nếu menu không có Openflow hoặc nút bị khóa, tài khoản trial cần được nâng lên trả phí (Admin → Billing) trước. Sau đó vào tab **Deployments** → **Create deployment**.
 2. Đặt tên `aq_openflow_aws`, chọn **BYOC** trên **AWS**, region `us-east-2`, và chọn **Bring your own VPC**.
 3. Tải template CloudFormation về `infra/cloudformation/aq-openflow-aws.yaml`.
 
@@ -127,16 +90,16 @@ CREATE OPENFLOW RUNTIME aq_runtime
 SHOW OPENFLOW RUNTIMES;
 ```
 
-Runtime chuyển từ `CREATING` sang `ACTIVE` sau khoảng 5 phút. Lần đầu mở runtime, Snowflake hỏi cấp quyền cho ứng dụng `SF$OAUTH$OPENFLOW_RUNTIME_...` với role `OPENFLOW_ADMIN`. Bấm **Allow**.
+Runtime chuyển từ `CREATING` sang `ACTIVE` sau khoảng 5 phút. Khi đó, vào lại **Openflow** → tab **Runtimes** và mở `AQ Runtime`. Snowflake sẽ hỏi cấp quyền cho ứng dụng `SF$OAUTH$OPENFLOW_RUNTIME_...` với role `OPENFLOW_ADMIN`. Bấm **Allow**.
 
 ## 4. Tạo connector PostgreSQL
 
 Connector cần driver JDBC của PostgreSQL. Tải bản **Java 8** mới nhất (`postgresql-42.7.x.jar`) từ [jdbc.postgresql.org/download](https://jdbc.postgresql.org/download/).
 
-Vào tab **Connector library**, chọn thẻ **PostgreSQL** có nhãn **Gen 2**, bấm **Install**. Wizard hỏi:
+Vào tab **Connector library**, chọn thẻ **PostgreSQL** có nhãn **Gen 2**, bấm **Install**, rồi làm theo thứ tự:
 
-- **Runtime:** `AQ Runtime`.
-- **Connector name:** `aq_postgres_cdc`.
+1. Ở **Select runtime**, chọn `AQ Runtime`.
+2. Đặt tên connector là `aq_postgres_cdc`, rồi bấm **Begin installation**. Các bước cấu hình chỉ hiện sau khi bấm nút này.
 
 Bỏ qua gợi ý dùng CoCo để kiểm tra điều kiện, vì các điều kiện đã có từ bước 1 và `postgres-ec2.md`.
 
@@ -151,6 +114,9 @@ Mỗi bước của wizard có nút **Verify configuration**. Bấm nút này tr
 | Source Database User | `openflow_replicator` |
 | Source Database Password | Secret `AQ_PG_REPLICATOR_PASSWORD` |
 | Source Database Publication Name | `openflow_aq_pub` |
+| Configure Logical Keys | `Default Primary Key Support` |
+
+`Default Primary Key Support` dùng khóa chính của bảng nguồn làm khóa để gộp thay đổi; chỉ cần đổi khi bảng không có khóa chính.
 
 Lấy `<PostgresPrivateIp>`:
 
@@ -164,7 +130,7 @@ aws cloudformation describe-stacks --stack-name aq-postgres-ec2 --region us-east
 
 ### Replication schemas/tables và Columns
 
-Chọn **Manual selection**, tích schema `aq` với hai bảng `stations` và `measurements`. Các bảng phải có trong publication; bảng nào không có sẽ bị bỏ qua mà không báo lỗi. Ở bước chọn cột, giữ tất cả cột và để bật **Always include newly added columns**.
+Để mặc định cả hai màn: **Manual selection**, schema `aq` với hai bảng `stations` và `measurements` đã được chọn (2/2), và giữ tất cả cột. Bấm **Verify configuration** rồi **Next** ở mỗi màn. Các bảng phải có trong publication; bảng nào không có sẽ bị bỏ qua mà không báo lỗi.
 
 ### Destination details
 
@@ -176,13 +142,15 @@ Chọn **Manual selection**, tích schema `aq` với hai bảng `stations` và `
 | Table Storage Format | `Iceberg` |
 | Iceberg Version | `Version 3` |
 
+Ô Iceberg Version chỉ hiện sau khi chọn `Iceberg`. Form không hỏi external volume. Các mục còn lại để mặc định.
+
 Với `{schema}`, schema nguồn `aq` thành schema `AQ_LAKEHOUSE.AQ`. Destination Schema Strategy, Object Identifier Resolution, Legacy Format Support và Iceberg Version không đổi được sau khi connector chạy.
 
 > **[HÌNH 2]** Bước Destination details với Table Storage Format = Iceberg.
 
 ### Tuning
 
-**Merge Task Schedule CRON** là lịch gộp thay đổi vào bảng đích, mỗi lần gộp dùng warehouse `AQ_WH`. Khi thực hành, đặt `0 * * * * ?` (mỗi phút) để thấy CDC nhanh.
+Để mặc định. **Merge Task Schedule CRON** đã là `0 * * * * ?` (gộp mỗi phút), mỗi lần gộp dùng warehouse `AQ_WH`. Concurrent Snapshot Queries và Enable Advanced Configuration giữ nguyên.
 
 ### Migration
 
@@ -191,13 +159,13 @@ Với `{schema}`, schema nguồn `aq` thành schema `AQ_LAKEHOUSE.AQ`. Destinati
 | Ingestion Type | `Full` |
 | Replication Slot Name | `openflow_aq_slot` |
 
-`Full` chạy snapshot toàn bộ dữ liệu rồi chuyển sang CDC. Đặt tên slot cố định để dễ theo dõi và dọn trên PostgreSQL.
+`Full` chạy snapshot toàn bộ dữ liệu rồi chuyển sang CDC. Ô Replication Slot Name để trống theo mặc định, nên phải điền; slot chưa tồn tại thì connector tạo mới với tên này. Tên cố định giúp theo dõi và dọn slot trên PostgreSQL.
 
 > **[HÌNH 3]** Bước Migration với Ingestion Type = Full và slot `openflow_aq_slot`.
 
 ### Bật connector
 
-Ở bước **Review configuration**, bấm **Verify configuration** rồi **Apply**. Connector được tạo ở trạng thái **Stopped**. Vào tab **Installed connectors**, mở menu ba chấm của `aq_postgres_cdc` và bấm **Start**. Trạng thái chuyển sang **Running**.
+Sau bước Migration, bấm **Verify configuration** lần cuối, đợi thông báo thành công rồi bấm **Apply**. Connector khởi tạo xong thì chuyển sang trạng thái **Stopped**; chỉ khi đó mới start được. Vào tab **Installed connectors**, mở menu ba chấm của `aq_postgres_cdc` và bấm **Start**, rồi chờ trạng thái chuyển sang **Running**.
 
 ## 5. Kiểm tra snapshot
 
@@ -218,6 +186,8 @@ SELECT
 | ---: | ---: |
 | 23 | 2117 |
 
+Cả hai bảng có `is_iceberg = Y` trong kết quả `SHOW TABLES`. Lúc này chưa có bảng journal nào: snapshot ban đầu được nạp thẳng vào bảng đích, còn journal của một bảng chỉ được tạo khi bảng đó có thay đổi CDC đầu tiên (xem bước 6).
+
 Trên EC2, slot đã được tạo và đang được đọc:
 
 ```powershell
@@ -229,7 +199,7 @@ aws ssm start-session --target $id --region us-east-2
 sudo docker exec aq-postgres psql -U postgres -d airquality -c "SELECT slot_name, active FROM pg_replication_slots;"
 ```
 
-Kết quả có `openflow_aq_slot` với `active = t`.
+Kết quả có `openflow_aq_slot` với `active = t`. Lệnh trên chạy trong phiên Session Manager của EC2, không chạy được trong Snowsight.
 
 ## 6. Kiểm tra CDC
 
@@ -272,6 +242,39 @@ WHERE MEASUREMENT_ID = 434;   -- TRUE
 ```
 
 Connector không xóa dòng mà đánh dấu bằng cột `_SNOWFLAKE_DELETED`. Khi đọc Bronze ở các tầng sau, lọc `WHERE NOT _SNOWFLAKE_DELETED`.
+
+**Journal so với bảng đích:** sau insert, bảng journal của `MEASUREMENTS` mới xuất hiện (`STATIONS` chưa có vì chưa có thay đổi nào). Lấy tên journal:
+
+```sql
+SHOW TABLES LIKE '%JOURNAL%' IN SCHEMA AQ_LAKEHOUSE.AQ;
+```
+
+Tên có dạng `MEASUREMENTS_JOURNAL_<epoch>_<số>`. Sau cả ba thao tác, thay `<tên-journal>` bằng tên này rồi so sánh ba dòng ở journal và ở bảng đích:
+
+```sql
+SELECT PRIMARY_KEY__MEASUREMENT_ID, PAYLOAD__AQI, EVENT_TYPE, SEEN_AT
+FROM AQ_LAKEHOUSE.AQ."<tên-journal>"
+ORDER BY SEEN_AT;
+
+SELECT MEASUREMENT_ID, AQI, _SNOWFLAKE_UPDATED_AT, _SNOWFLAKE_DELETED
+FROM AQ_LAKEHOUSE.AQ.MEASUREMENTS
+WHERE MEASUREMENT_ID IN (2118, 320, 434);
+```
+
+Journal có ba dòng, với `EVENT_TYPE` lần lượt là `IncrementalInsertRows` (2118), `IncrementalUpdateRows` (320, kèm giá trị mới, `PAYLOAD__AQI = 275`) và `IncrementalDeleteRows` (434, chỉ có khóa chính, các cột `PAYLOAD__*` để trống). Journal giữ lại các dòng sau khi đã gộp, còn bảng đích chỉ giữ một dòng cho mỗi khóa: dòng 434 vẫn còn, mang `_SNOWFLAKE_DELETED = TRUE` và giá trị cuối cùng trước khi xóa.
+
+Các cột của journal:
+
+| Cột | Ý nghĩa |
+| --- | --- |
+| `PRIMARY_KEY__*` | Khóa chính của dòng |
+| `PAYLOAD__*` | Giá trị các cột của dòng sau thay đổi (trống với delete) |
+| `LEAST_SIGNIFICANT_POSITION`, `MOST_SIGNIFICANT_POSITION` | Vị trí của thay đổi trong transaction log |
+| `EVENT_TYPE` | `IncrementalInsertRows`, `IncrementalUpdateRows` hoặc `IncrementalDeleteRows` |
+| `SEEN_AT` | Thời điểm connector nhận thay đổi |
+| `SF_METADATA` | Metadata, gồm `offset_token` |
+
+Không sửa cấu trúc hoặc xóa journal khi connector đang chạy, vì connector dùng chúng để cập nhật bảng đích.
 
 ## Dọn dẹp
 

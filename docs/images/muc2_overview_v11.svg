@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="490" viewBox="0 0 1600 490" font-family="Figtree, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="ah" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto">
+      <polygon points="0,0 11,4.5 0,9" fill="#141414"/>
+    </marker>
+  <marker id="ahp" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><polygon points="0,0 11,4.5 0,9" fill="#D6336C"/></marker>
+    <marker id="ahb" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><polygon points="0,0 11,4.5 0,9" fill="#2B6CB0"/></marker>
+  </defs>
+  <rect width="1600" height="490" fill="#FBFAF7"/>
+
+  <!-- Title -->
+  <rect x="40" y="42" width="8" height="72" fill="#2F9E5B"/>
+  <text x="64" y="82" font-size="40" font-weight="900" fill="#141414">Source database to Iceberg: snapshot, then CDC</text>
+  <text x="64" y="108" font-size="16" fill="#57534E">Copy existing rows once, then stream every change into the table</text>
+
+  <!-- Zones (only where several cards are grouped) -->
+  <g fill="#F3F1EA" stroke="#141414" stroke-width="1.5" stroke-dasharray="7 6">
+    <rect x="40" y="150" width="210" height="300" rx="16"/>
+    <rect x="730" y="150" width="540" height="300" rx="16"/>
+  </g>
+  <g font-size="13" font-weight="700" fill="#57534E">
+    <text x="60" y="176">Operational database</text>
+    <text x="750" y="176">Destination</text>
+  </g>
+
+  <!-- Arrows (under cards) -->
+  <g fill="none" stroke="#141414" stroke-width="2">
+    <path d="M145 286 V326" marker-end="url(#ah)"/>
+    <!-- two inputs gather into one -->
+    <path d="M230 238 H400 V306" stroke="#D6336C"/>
+    <path d="M230 374 H400 V306" stroke="#2B6CB0"/>
+    <path d="M400 306 H460" marker-end="url(#ah)"/>
+    <!-- one output splits into two -->
+    <path d="M610 306 H680"/>
+    <path d="M680 306 V205 H1210 V326" stroke="#D6336C" marker-end="url(#ahp)"/>
+    <path d="M680 306 V374 H750" stroke="#2B6CB0" marker-end="url(#ahb)"/>
+    <path d="M890 374 H930" stroke="#2B6CB0" marker-end="url(#ahb)"/>
+    <path d="M1070 374 H1110" stroke="#2B6CB0" marker-end="url(#ahb)"/>
+    <path d="M1250 374 H1370" marker-end="url(#ah)"/>
+    <path d="M1085 270 H1140 V326" stroke-dasharray="6 5"/>
+  </g>
+  <g fill="#141414">
+    <circle cx="400" cy="306" r="4"/>
+    <circle cx="680" cy="306" r="4"/>
+  </g>
+
+  <!-- Cards -->
+  <g stroke="#141414" stroke-width="2">
+    <rect x="60" y="190" width="170" height="96" rx="11" fill="#A9CFF5"/>
+    <rect x="60" y="326" width="170" height="96" rx="11" fill="#A9CFF5"/>
+    <rect x="460" y="258" width="150" height="96" rx="11" fill="#CDB8F7"/>
+    <rect x="750" y="326" width="140" height="96" rx="11" fill="#8EE4AF"/>
+    <rect x="930" y="326" width="140" height="96" rx="11" fill="#8EE4AF"/>
+    <rect x="1110" y="326" width="140" height="96" rx="11" fill="#8EE4AF"/>
+    <rect x="915" y="238" width="170" height="64" rx="11" fill="#FFC9BA"/>
+    <rect x="1370" y="326" width="160" height="96" rx="11" fill="#F8D3A0"/>
+  </g>
+
+  <!-- Icon placeholders: replace each with an icon (28x28) -->
+  <g fill="none" stroke="#141414" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="3 3">
+    <rect id="icon-source-tables" x="131" y="200" width="28" height="28" rx="6"/>
+    <rect id="icon-transaction-log" x="131" y="336" width="28" height="28" rx="6"/>
+    <rect id="icon-cdc-service" x="521" y="268" width="28" height="28" rx="6"/>
+    <rect id="icon-change-log" x="806" y="336" width="28" height="28" rx="6"/>
+    <rect id="icon-merge" x="986" y="336" width="28" height="28" rx="6"/>
+    <rect id="icon-iceberg-table" x="1166" y="336" width="28" height="28" rx="6"/>
+    <rect id="icon-soft-delete" x="929" y="256" width="28" height="28" rx="6"/>
+    <rect id="icon-object-storage" x="1436" y="336" width="28" height="28" rx="6"/>
+  </g>
+
+  <!-- Card text -->
+  <g text-anchor="middle" fill="#141414">
+    <text x="145" y="248" font-size="14" font-weight="800">Source tables</text>
+    <text x="145" y="268" font-size="12">Primary keys</text>
+    <text x="145" y="384" font-size="14" font-weight="800">Transaction log</text>
+    <text x="145" y="404" font-size="12">Ordered changes</text>
+
+    <text x="535" y="316" font-size="14" font-weight="800">CDC service</text>
+    <text x="535" y="336" font-size="12">Reads table, log</text>
+
+    <text x="820" y="384" font-size="14" font-weight="800">Journal</text>
+    <text x="820" y="404" font-size="12">Row versions</text>
+    <text x="1000" y="384" font-size="14" font-weight="800">Merge by key</text>
+    <text x="1000" y="404" font-size="12">Insert, update</text>
+    <text x="1180" y="384" font-size="14" font-weight="800">Iceberg table</text>
+    <text x="1180" y="404" font-size="12">Current state</text>
+
+    <text x="1450" y="384" font-size="14" font-weight="800">Object storage</text>
+    <text x="1450" y="404" font-size="12">Files, metadata</text>
+  </g>
+  <g fill="#141414">
+    <text x="967" y="266" font-size="14" font-weight="800">Soft delete</text>
+    <text x="967" y="284" font-size="12">Marked, retained</text>
+  </g>
+
+  <!-- Arrow labels (plain text) -->
+  <g font-size="12" fill="#141414" text-anchor="middle">
+    <text x="325" y="228" fill="#D6336C" font-weight="700">Snapshot</text>
+    <text x="325" y="364" fill="#2B6CB0" font-weight="700">Stream</text>
+    <text x="945" y="197" fill="#D6336C" font-weight="700">Direct copy</text>
+    <text x="1132" y="318" text-anchor="end">deleted rows</text>
+    <text x="1310" y="364">stored as</text>
+  </g>
+</svg>

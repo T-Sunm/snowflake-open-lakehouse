@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="660" viewBox="0 0 1600 660" font-family="Figtree, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="ah" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto">
+      <polygon points="0,0 11,4.5 0,9" fill="#141414"/>
+    </marker>
+  </defs>
+  <rect width="1600" height="660" fill="#FBFAF7"/>
+
+  <!-- Title -->
+  <rect x="40" y="42" width="8" height="72" fill="#2F9E5B"/>
+  <text x="64" y="82" font-size="40" font-weight="900" fill="#141414">From change log to current state</text>
+  <text x="64" y="108" font-size="16" fill="#57534E">Every change is appended, then merged into one current row per key</text>
+
+  <!-- Diagram (local coordinates, scaled 1.2) -->
+  <g transform="translate(40,150) scale(1.2)">
+    <rect x="0" y="0" width="1018" height="400" rx="16" fill="#F3F1EA" stroke="#141414" stroke-width="1.5" stroke-dasharray="7 6"/>
+    <text x="20" y="26" font-size="13" font-weight="700" fill="#57534E">Destination</text>
+
+    <!-- Arrows (under cards) -->
+    <g fill="none" stroke="#141414" stroke-width="2">
+      <path d="M410 240 V282" marker-end="url(#ah)"/>
+      <path d="M500 326 H730 V170" marker-end="url(#ah)"/>
+      <path d="M855 282 V170" stroke-dasharray="6 5" marker-end="url(#ah)"/>
+    </g>
+
+    <!-- Change log table -->
+    <text x="98" y="54" font-size="14" font-weight="800" fill="#141414">Change log</text>
+    <rect x="98" y="64" width="370" height="176" rx="8" fill="#FFFFFF" stroke="#141414" stroke-width="2"/>
+    <path d="M98 96 V72 a8 8 0 0 1 8 -8 H460 a8 8 0 0 1 8 8 V96 Z" fill="#8EE4AF" stroke="#141414" stroke-width="2"/>
+    <g stroke="#141414" stroke-opacity="0.35" stroke-width="1">
+      <path d="M98 132 H468"/><path d="M98 168 H468"/><path d="M98 204 H468"/>
+      <path d="M158 64 V240"/><path d="M238 64 V240"/><path d="M358 64 V240"/>
+    </g>
+    <g text-anchor="middle" font-size="13" fill="#141414">
+      <g font-weight="800">
+        <text x="128" y="85">#</text><text x="198" y="85">key</text><text x="298" y="85">operation</text><text x="413" y="85">value</text>
+      </g>
+      <text x="128" y="119">1</text><text x="198" y="119">7</text><text x="298" y="119">Insert</text><text x="413" y="119">10</text>
+      <text x="128" y="155">2</text><text x="198" y="155">7</text><text x="298" y="155">Update</text><text x="413" y="155">25</text>
+      <text x="128" y="191">3</text><text x="198" y="191">7</text><text x="298" y="191">Delete</text><text x="413" y="191">–</text>
+      <text x="128" y="227">4</text><text x="198" y="227">8</text><text x="298" y="227">Insert</text><text x="413" y="227">40</text>
+    </g>
+    <text x="98" y="264" font-size="13" font-weight="700" fill="#57534E">Every change is kept</text>
+
+    <!-- Merge card -->
+    <rect x="320" y="282" width="180" height="88" rx="11" fill="#8EE4AF" stroke="#141414" stroke-width="2"/>
+    <rect id="icon-merge" x="396" y="290" width="28" height="28" rx="6" fill="none" stroke="#141414" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <g text-anchor="middle" fill="#141414">
+      <text x="410" y="340" font-size="14" font-weight="800">Merge by key</text>
+      <text x="410" y="358" font-size="12">Latest change per key</text>
+    </g>
+
+    <!-- Iceberg table (same height as the change log) -->
+    <text x="600" y="54" font-size="14" font-weight="800" fill="#141414">Iceberg table</text>
+    <rect x="600" y="64" width="320" height="104" rx="8" fill="#FFFFFF" stroke="#141414" stroke-width="2"/>
+    <path d="M600 96 V72 a8 8 0 0 1 8 -8 H912 a8 8 0 0 1 8 8 V96 Z" fill="#8EE4AF" stroke="#141414" stroke-width="2"/>
+    <rect x="602" y="97" width="316" height="34" fill="#FFC9BA"/>
+    <g stroke="#141414" stroke-opacity="0.35" stroke-width="1">
+      <path d="M600 132 H920"/>
+      <path d="M680 64 V168"/><path d="M790 64 V168"/>
+    </g>
+    <g text-anchor="middle" font-size="13" fill="#141414">
+      <g font-weight="800">
+        <text x="640" y="85">key</text><text x="735" y="85">value</text><text x="855" y="85">deleted</text>
+      </g>
+      <text x="640" y="119">7</text><text x="735" y="119">25</text><text x="855" y="119" font-weight="800">TRUE</text>
+      <text x="640" y="155">8</text><text x="735" y="155">40</text><text x="855" y="155">FALSE</text>
+    </g>
+    <text x="600" y="190" font-size="13" font-weight="700" fill="#57534E">One row per key</text>
+
+    <!-- Soft delete card (below the table, pointing up) -->
+    <rect x="770" y="282" width="170" height="88" rx="11" fill="#FFC9BA" stroke="#141414" stroke-width="2"/>
+    <rect id="icon-soft-delete" x="841" y="290" width="28" height="28" rx="6" fill="none" stroke="#141414" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <g text-anchor="middle" fill="#141414">
+      <text x="855" y="340" font-size="14" font-weight="800">Soft delete</text>
+      <text x="855" y="358" font-size="12">Marked, retained</text>
+    </g>
+  </g>
+</svg>

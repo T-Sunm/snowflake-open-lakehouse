@@ -69,8 +69,10 @@ CREATE AUTHENTICATION POLICY IF NOT EXISTS AQ_LAKEHOUSE.CONTROL.AQ_PAT_POLICY
   AUTHENTICATION_METHODS = ('PROGRAMMATIC_ACCESS_TOKEN')
   PAT_POLICY = (NETWORK_POLICY_EVALUATION = ENFORCED_NOT_REQUIRED);
 
--- FORCE replaces a policy the user already has, so the file can be re-run.
-ALTER USER AQ_DUCKDB SET AUTHENTICATION POLICY AQ_LAKEHOUSE.CONTROL.AQ_PAT_POLICY FORCE;
+-- A user can hold only one authentication policy, so remove any existing one
+-- before setting it. This makes the file safe to re-run.
+ALTER USER AQ_DUCKDB UNSET AUTHENTICATION POLICY;
+ALTER USER AQ_DUCKDB SET AUTHENTICATION POLICY AQ_LAKEHOUSE.CONTROL.AQ_PAT_POLICY;
 
 -- Part B: the SANDBOX schema (OPENFLOW_ADMIN) ---------------------------------
 -- The table is created and owned by OPENFLOW_ADMIN, the role that already has
@@ -95,9 +97,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE
   ON TABLE AQ_LAKEHOUSE.SANDBOX.DUCKDB_NOTES TO ROLE AQ_EXTERNAL;
 
 -- Check: what the role can do.
--- Expected: SELECT on the five Silver and five Gold tables (and on the two tables of
--- SILVER_CANDIDATE); SELECT, INSERT,
--- UPDATE, DELETE, TRUNCATE on SANDBOX.DUCKDB_NOTES; no write privilege on Silver or Gold.
+-- Expected: SELECT on the five Silver and five Gold tables and on the two tables
+-- of SILVER_CANDIDATE; SELECT, INSERT, UPDATE, DELETE, TRUNCATE on
+-- SANDBOX.DUCKDB_NOTES; no write privilege on Silver or Gold.
 SHOW GRANTS TO ROLE AQ_EXTERNAL;
 
 -- Part C: the token (ACCOUNTADMIN) --------------------------------------------

@@ -84,7 +84,8 @@ VALUES
 -- -----------------------------------------------------------------------------
 -- 3. FACT_AQI: one row per measurement.
 --    * measured_at is converted to Vietnam time (UTC+7) before date/time keys
---      are derived, otherwise readings after 17:00 land on the next day.
+--      are derived: from 17:00 UTC it is already the next day in Vietnam, so
+--      using the UTC date would assign the wrong date key.
 --    * the time key uses the HOUR only (DIM_TIME has one row per hour).
 --    * rows that cannot be joined to every dimension are not loaded here;
 --      the Audit step catches them by comparing row counts with Bronze.
