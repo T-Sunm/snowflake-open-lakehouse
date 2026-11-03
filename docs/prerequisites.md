@@ -1,4 +1,4 @@
-## Yêu cầu chuẩn bị
+# Yêu cầu chuẩn bị
 
 Trước khi đi vào thực hành, bạn cần chuẩn bị sẵn một số thứ sau. Tài liệu chính thức của từng công cụ đã hướng dẫn cách cài.
 

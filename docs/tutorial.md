@@ -1,6 +1,6 @@
 # Mục 2. Đưa dữ liệu từ PostgreSQL vào Bronze
 
-> **[HÌNH 1: tổng quan CDC từ cơ sở dữ liệu nguồn vào bảng Iceberg]** (`muc2_overview_v12.svg`)
+> **[HÌNH 1: tổng quan CDC từ cơ sở dữ liệu nguồn vào bảng Iceberg]** (`muc2-cdc-to-bronze.svg`)
 
 Bronze là tầng chứa dữ liệu thô, giữ gần nguyên cấu trúc của hệ thống nguồn (source system). Khi nguồn là một operational database như PostgreSQL, nơi ứng dụng liên tục ghi dữ liệu, nội dung các bảng luôn thay đổi. Bronze, gồm các bảng Iceberg trên S3, cần theo kịp những thay đổi đó mà không phải sao chép lại toàn bộ bảng sau mỗi lần, và bài toán này được giải bằng kỹ thuật ghi nhận thay đổi dữ liệu (CDC), với nhiều cách tiếp cận khác nhau.
 
@@ -21,7 +21,7 @@ Có bốn hướng phổ biến để giữ bản sao dữ liệu khớp với n
 
 So với ba cách còn lại, khi theo dõi thay đổi, đọc transaction log không tạo tải đọc trên các bảng nguồn, không đòi hỏi cột đặc biệt trong bảng và ghi nhận được cả thao tác xóa.
 
-## Hai giai đoạn: snapshot ban đầu và thay đổi liên tục
+## Snapshot ban đầu và thay đổi liên tục
 
 Một hệ thống CDC dựa trên log làm việc theo hai giai đoạn nối tiếp. Trước hết, snapshot ban đầu sao chép toàn bộ các dòng hiện có để tạo điểm xuất phát cho bảng Bronze (khác với snapshot của Iceberg), sau đó hệ thống chỉ theo dõi và áp dụng các thay đổi mới mà không đọc lại bảng nguồn. Bước sao chép ban đầu là cần thiết vì log chỉ ghi lại các thay đổi, không chứa dữ liệu đã có sẵn từ trước.
 
@@ -31,14 +31,14 @@ Giai đoạn thay đổi liên tục đọc thay đổi từ transaction log c�
 
 > **Transaction log** (gọi tắt là log) là nhật ký ghi lại mọi `INSERT`, `UPDATE` và `DELETE` theo đúng thứ tự xảy ra. Trong PostgreSQL, log này gọi là **WAL** (write-ahead log).
 
-Để hệ thống bên ngoài đọc được log này, PostgreSQL cung cấp logical replication, cơ chế giải mã WAL thành các thay đổi của từng dòng rồi phát chúng đi. Cơ chế này theo mô hình publisher–subscriber, trong đó operational database là publisher, còn bên đọc, ở đây là dịch vụ CDC, là subscriber. Để xác định dòng nào bị cập nhật hoặc xóa, mỗi thay đổi mang theo định danh của dòng (replica identity), mặc định là khóa chính. Logical replication được thiết lập bằng hai đối tượng:
+Để hệ thống bên ngoài đọc được log này, PostgreSQL cung cấp logical replication, cơ chế giải mã WAL thành các thay đổi của từng dòng rồi phát chúng đi. Cơ chế này theo mô hình publisher–subscriber: operational database là publisher, còn dịch vụ CDC trong bài là subscriber. Để xác định dòng nào bị cập nhật hoặc xóa, mỗi thay đổi mang theo định danh của dòng (replica identity), mặc định là khóa chính. Logical replication được thiết lập bằng hai đối tượng:
 
 - **Publication** xác định tập bảng mà publisher phát thay đổi.
 - **Replication slot** lưu vị trí mà subscriber đã đọc đến trong log. Cơ sở dữ liệu giữ lại phần log chưa được đọc, nên subscriber dừng rồi chạy lại vẫn không bỏ sót thay đổi nào, nhưng đổi lại, một slot không còn ai đọc sẽ khiến log tích lũy và chiếm dung lượng ổ đĩa của nguồn.
 
 Ở phía subscriber, dịch vụ CDC thực hiện snapshot ban đầu, sau đó đọc luồng thay đổi từ slot để ghi vào Bronze, và xác nhận tiến độ để slot dịch vị trí lên phía trước.
 
-> **[HÌNH 2: transaction log, publication và replication slot]** (`muc2_hinh2_slot.svg`)
+> **[HÌNH 2: transaction log, publication và replication slot]** (`muc2-publication-replication-slot.png`)
 
 ## Từ transaction log đến Bronze
 
@@ -56,7 +56,7 @@ Bước gộp ở trên áp dụng trực tiếp được cho `INSERT` và `UPDA
 
 Hệ quả là các tầng sau tự quyết định có giữ hay bỏ dòng đã xóa, và mọi truy vấn lấy trạng thái hiện tại phải loại các dòng có dấu xóa. Trong ví dụ ở hình dưới, dòng có key 7 vẫn còn trong Bronze nhưng mang dấu xóa, nên truy vấn trạng thái hiện tại chỉ trả về dòng có key 8.
 
-> **[HÌNH 3: từ change log đến trạng thái hiện tại]** (`muc2_hinh3_merge.svg`)
+> **[HÌNH 3: từ change log đến trạng thái hiện tại]** (`muc2-change-log-current-state.svg`)
 
 ## 2.1. Chuẩn bị hạ tầng
 
@@ -78,9 +78,7 @@ aws cloudformation deploy --template-file infra/cloudformation/iceberg-storage.y
 
 Việc cấp quyền giữa AWS và Snowflake phải được thiết lập theo hai chiều, và mỗi bên chỉ có thông tin cần thiết sau khi bên kia tạo xong. Role cần biết Snowflake sẽ assume nó bằng IAM user nào, nhưng IAM user này chỉ được Snowflake sinh ra khi external volume được tạo, mà external volume lại cần ARN của role. Vì vậy các bước đi theo thứ tự AWS, Snowflake, AWS, Snowflake, với số thứ tự như trong hình.
 
-> **[HÌNH 4]** (`2-1-external-volume-trust.png`)
->
-> *Hình 4. Luồng cấp quyền giữa AWS và Snowflake: thiết lập (bước 1 đến 5) và ghi dữ liệu vào S3 (bước 6 đến 8).*
+> **[HÌNH 4: Luồng cấp quyền giữa AWS và Snowflake, thiết lập (bước 1 đến 5) và ghi dữ liệu vào S3 (bước 6 đến 8)]** (`muc2-external-volume-aws-trust.svg`)
 
 Lần deploy đầu cho ra ba giá trị `StorageBaseUrl`, `RoleArn` và `ExternalId`, trong đó `ExternalId` là chuỗi dùng chung mà role yêu cầu mỗi khi Snowflake assume nó. Ba giá trị này được điền vào Part A của `snowflake/01_external_volume.sql` để tạo external volume. Lần deploy thứ hai truyền `SnowflakeIamUserArn` (đọc từ external volume vừa tạo) để trust policy cho phép IAM user của Snowflake assume role, và output `TrustReady` chuyển từ `false` sang `true` khi lần này xong.
 
@@ -140,9 +138,7 @@ aws cloudformation deploy --template-file infra/cloudformation/postgres-ec2.yaml
 
 Các giá trị đầu ra của stack được dùng lại ở các bước sau: `InstanceId` để kết nối Session Manager, `PostgresPrivateIp` làm host khi tạo connector, còn VPC, subnet và security group được chọn lại khi tạo deployment Openflow.
 
-> **[HÌNH 5]** (`2-1-postgres-ec2-outputs.png`)
->
-> *Hình 5. Các giá trị đầu ra của stack `aq-postgres-ec2`.*
+> **[HÌNH 5: Các giá trị đầu ra của stack `aq-postgres-ec2`]** (`muc2-postgres-ec2-outputs.png`)
 
 Để kiểm tra, mở phiên Session Manager vào EC2 rồi truy vấn PostgreSQL trong container:
 
@@ -159,9 +155,7 @@ sudo docker exec aq-postgres psql -U postgres -d airquality -c "SHOW wal_level;"
 
 Ba điều cần xác nhận là container `aq-postgres` ở trạng thái `healthy`, `wal_level` là `logical` cùng publication `openflow_aq_pub` có đủ hai bảng, và dữ liệu đã nạp xong. Số trạm (23) và số phép đo (2117) là mốc để đối chiếu với Bronze sau initial snapshot ở mục 2.2.
 
-> **[HÌNH 6]** (`2-1-postgres-ec2-verify.png`)
->
-> *Hình 6. Kết quả kiểm tra PostgreSQL trên EC2: container, log nạp dữ liệu, `wal_level` và publication.*
+> **[HÌNH 6: Kết quả kiểm tra PostgreSQL trên EC2, gồm container, log nạp dữ liệu, `wal_level` và publication]** (`muc2-postgres-ec2-verification.png`)
 
 ## 2.2. Triển khai Openflow và initial snapshot
 
@@ -180,19 +174,13 @@ Sau khi chạy file, đăng xuất rồi đăng nhập lại Snowsight để cá
 
 Với role OPENFLOW_ADMIN, vào **Ingestion** → **Openflow**, bấm **Launch Openflow** ở lần đầu rồi chọn **Deployments** → **Create deployment**. Đặt tên `aq_openflow_aws`, chọn **BYOC** trên **AWS**, region `us-east-2` và **Bring your own VPC**.
 
-> **[HÌNH 7]** (`2-2-deployment-location.png`)
->
-> *Hình 7. Chọn nơi triển khai deployment: BYOC trên AWS, region us-east-2.*
+> **[HÌNH 7: Chọn nơi triển khai deployment, BYOC trên AWS, region us-east-2]** (`muc2-openflow-deployment-location.png`)
 
-> **[HÌNH 8]** (`2-2-deployment-config.png`)
->
-> *Hình 8. Cấu hình deployment với Bring your own VPC.*
+> **[HÌNH 8: Cấu hình deployment với Bring your own VPC]** (`muc2-openflow-deployment-config.png`)
 
 Sau khi bấm **Create deployment**, Snowflake cung cấp một template CloudFormation đã chứa cấu hình của deployment. Template được tải về `infra/cloudformation/aq-openflow-aws.yaml` và chỉ cần truyền thêm VPC, hai private subnet và security group, lấy từ đầu ra của stack ở mục 2.1 (template chứa secret OAuth nên không được commit lên Git).
 
-> **[HÌNH 9]** (`2-2-deployment-created.png`)
->
-> *Hình 9. Hộp thoại sau khi tạo deployment, cung cấp template CloudFormation.*
+> **[HÌNH 9: Hộp thoại sau khi tạo deployment, cung cấp template CloudFormation]** (`muc2-openflow-deployment-created.png`)
 
 ```powershell
 $out = aws cloudformation describe-stacks --stack-name aq-postgres-ec2 --region us-east-2 --query "Stacks[0].Outputs" | ConvertFrom-Json
@@ -205,9 +193,7 @@ PrivateSubnet1 là private subnet A, cùng subnet với EC2 PostgreSQL. Template
 
 Stack hoàn tất sau vài phút, rồi agent EC2 trong stack tiếp tục dựng EKS, RDS và load balancer. Deployment sẵn sàng khi trạng thái chuyển sang **Active**.
 
-> **[HÌNH 10]** (`2-2-deployment-active.png`)
->
-> *Hình 10. Deployment aq_openflow_aws ở trạng thái Active.*
+> **[HÌNH 10: Deployment aq_openflow_aws ở trạng thái Active]** (`muc2-openflow-deployment-active.png`)
 
 ### Runtime
 
@@ -248,21 +234,15 @@ aws cloudformation describe-stacks --stack-name aq-postgres-ec2 --region us-east
 | Source Database Publication Name | `openflow_aq_pub` |
 | Configure Logical Keys | `Default Primary Key Support` |
 
-> **[HÌNH 11]** (`2-2-connector-source.png`)
->
-> *Hình 11. Bước Source sau khi Verify configuration thành công.*
+> **[HÌNH 11: Bước Source sau khi Verify configuration thành công]** (`muc2-postgres-connector-source.png`)
 
 Hai bước tiếp theo xác định dữ liệu nào được sao chép và ghi vào đâu. Ở **Replication**, giữ mặc định là schema aq với hai bảng stations và measurements cùng tất cả cột, và hai bảng này phải nằm trong publication, nếu không connector bỏ qua mà không báo lỗi. Ở **Destination details**, Bronze được ghi vào database AQ_LAKEHOUSE bằng warehouse AQ_WH, và với Destination Schema Strategy giữ `{schema}` thì schema nguồn aq trở thành AQ_LAKEHOUSE.AQ. **Table Storage Format** được đổi từ Standard sang Iceberg, sau đó ô **Iceberg Version** xuất hiện và được chọn là Version 3. Form không hỏi external volume vì bảng Bronze nhận thiết lập của database lúc được tạo (mục 2.1), và một số mục như Destination Schema Strategy hay Iceberg Version không đổi được sau khi connector chạy.
 
-> **[HÌNH 12]** (`2-2-connector-destination.png`)
->
-> *Hình 12. Bước Destination details với Table Storage Format là Iceberg và Iceberg Version là Version 3.*
+> **[HÌNH 12: Bước Destination details với Table Storage Format là Iceberg và Iceberg Version là Version 3]** (`muc2-postgres-connector-destination.png`)
 
 Hai bước cuối điều khiển nhịp và cách khởi động của connector. **Tuning** giữ mặc định, với lịch gộp `0 * * * * ?` tức là gộp thay đổi vào Bronze mỗi phút, và lịch này quyết định độ trễ như ở phần giới thiệu. Ở **Migration**, Ingestion Type giữ Full để connector chạy initial snapshot rồi chuyển sang CDC (Incremental bỏ qua snapshot nên dữ liệu có sẵn không được sao chép), còn Replication Slot Name cần điền `openflow_aq_slot` vì ô này để trống theo mặc định, và nếu slot chưa có thì connector tạo mới.
 
-> **[HÌNH 13]** (`2-2-connector-migration.png`)
->
-> *Hình 13. Bước Migration với Ingestion Type là Full và replication slot openflow_aq_slot.*
+> **[HÌNH 13: Bước Migration với Ingestion Type là Full và replication slot openflow_aq_slot]** (`muc2-postgres-connector-migration.png`)
 
 Sau Migration, bấm **Verify configuration** lần cuối, đợi thông báo thành công rồi bấm **Apply**. Connector chuyển sang **Stopped** sau khi khởi tạo xong, và chỉ khi đó mới start được: trong **Installed connectors**, mở menu ba chấm của aq_postgres_cdc, chọn **Start** rồi chờ **Running**.
 
@@ -367,7 +347,7 @@ Mỗi dòng journal gồm khóa chính (`PRIMARY_KEY__*`), giá trị các cột
 
 # Mục 3. Transformation và kiểm soát data quality
 
-> **[HÌNH 14: tổng quan Write-Audit-Publish từ Bronze đến Silver và Gold]** (`muc3_overview.svg`)
+> **[HÌNH 14: tổng quan Write-Audit-Publish từ Bronze đến Silver và Gold]** (`muc3-write-audit-publish.png`)
 
 Sau mục 2, Bronze đã nhận dữ liệu từ PostgreSQL và được cập nhật liên tục bằng CDC. Tuy nhiên, Bronze giữ dữ liệu gần nguyên như ở nguồn, kể cả những phần chưa sạch như giá trị thiếu, giá trị ngoài miền hợp lệ, dòng trùng và các dòng đã bị soft delete vẫn nằm trong bảng. Dashboard và các truy vấn phân tích không nên đọc trực tiếp từ đó. Mục này thực hiện transformation (biến đổi dữ liệu) để xây dựng hai tầng tiếp theo là Silver và Gold, đồng thời đặt một quy trình kiểm soát data quality (chất lượng dữ liệu) để dữ liệu chỉ đến người dùng sau khi đã được kiểm tra.
 
@@ -385,7 +365,7 @@ Candidate cần chứa các bảng Silver thay đổi theo Bronze để so sánh
 
 > **Zero-copy clone** là bản sao của bảng không sao chép dữ liệu. Bản gốc và bản clone dùng chung các file Parquet trên S3 nhưng có file metadata riêng, và chỉ những thay đổi sau đó mới tạo file dữ liệu mới.
 
-> **[HÌNH 15: Silver hiện tại, candidate và Bronze]** (`muc3_hinh2_candidate.svg`)
+> **[HÌNH 15: Silver hiện tại, candidate và Bronze]** (`muc3-silver-candidate-bronze.png`)
 
 ## 3.1. Chuẩn bị schema và đăng nhập cho pipeline
 
@@ -449,7 +429,7 @@ uv run wap/run.py
 
 Bốn bước gồm Write, Audit, Publish rồi Gold. Mỗi bước in một dòng tiêu đề dạng `== 1/4 WRITE ...`. Kết quả đúng ở lần chạy đầu là Audit in 22 dòng `[PASS]` kèm dòng `AUDIT PASSED.`, và script kết thúc bằng dòng `== Done. Silver and Gold are updated.`. Các phần dưới đây giải thích từng bước qua những đoạn code chính của từng bước.
 
-> **[HÌNH 16: Output của wap/run.py, từ bước WRITE đến dòng Done]** (muc3_run_output.png)
+> **[HÌNH 16: Output của wap/run.py, từ bước WRITE đến dòng Done]** (muc3-wap-run-output.png)
 
 ### Write
 
@@ -636,7 +616,15 @@ ORDER BY aqi_rank NULLS LAST, city_name;
 
 Kết quả đúng là 11 thành phố. Chín thành phố đầu có hạng từ 1 đến 9, mỗi thành phố có 9 ngày quan sát. Đà Nẵng và Nha Trang không có giá trị AQI nên `avg_aqi` và `aqi_rank` để trống, và hai thành phố này nằm cuối bảng.
 
-> **[HÌNH 17: Bảng xếp hạng thành phố tháng 1/2021 trong Snowsight]** (muc3_gold_ranking.png)
+> **[HÌNH 17: Bảng xếp hạng thành phố tháng 1/2021 trong Snowsight]** (muc3-gold-city-ranking.png)
+
+# Mục 4. Truy cập lakehouse từ engine bên ngoài
+
+> **[HÌNH 18: Tổng quan engine bên ngoài đọc và ghi qua Horizon Catalog]** (muc4-external-engine-overview.svg)
+
+> **[TODO: Phần mở đầu mục 4, viết theo doc "Dàn ý giới thiệu Mục 4". Giới thiệu Horizon Catalog, PAT và vended credentials, rồi đặt HÌNH 19 sau đoạn về PAT và vended credentials.]**
+
+> **[HÌNH 19: Horizon chỉ cấp khóa S3 cho role có quyền]** (muc4-horizon-s3-access-flow.svg)
 
 ## 4.1. Cấp quyền cho engine bên ngoài
 
@@ -719,7 +707,7 @@ uv run scripts/check_horizon.py
 
 Kết quả đúng gồm ba dòng PASS cho việc đổi token, lấy cấu hình catalog và liệt kê schema, không có dòng FAIL nào, danh sách đủ bốn schema và dòng cuối cho biết role thấy 13 bảng.
 
-> **[HÌNH 20: Kết quả kiểm tra kết nối Horizon, role AQ_EXTERNAL thấy 13 bảng]** (muc4_check_horizon.png)
+> **[HÌNH 20: Kết quả kiểm tra kết nối Horizon, role AQ_EXTERNAL thấy 13 bảng]** (muc4-horizon-connection-check.png)
 
 Dòng Endpoint là địa chỉ của Horizon Catalog, có dạng `https://<account-identifier>.snowflakecomputing.com/polaris/api/catalog`. Giá trị prefix chính là tên catalog, và tên này là tên database AQ_LAKEHOUSE viết hoa, không phải tên warehouse. Mục 4.2 dùng tên này khi kết nối DuckDB. Schema chứa Bronze và schema CONTROL không xuất hiện trong danh sách, vì role không có quyền trên hai schema này.
 
@@ -782,7 +770,7 @@ Script `duckdb/write.py` thao tác trên bảng SANDBOX.DUCKDB_NOTES và in bả
 uv run duckdb/write.py
 ```
 
-> **[HÌNH 21: DuckDB đọc Silver và Gold, rồi ghi vào bảng sandbox]** (muc4_duckdb_read_write.png)
+> **[HÌNH 21: DuckDB đọc Silver và Gold, rồi ghi vào bảng sandbox]** (muc4-duckdb-read-write-results.png)
 
 Sau khi script chạy xong, Snowflake phải thấy đúng những gì DuckDB đã ghi. Bạn đọc lại bảng trong Snowsight:
 
@@ -794,7 +782,7 @@ SELECT * FROM AQ_LAKEHOUSE.SANDBOX.DUCKDB_NOTES ORDER BY note_id;
 
 Kết quả đúng là 2 dòng, dòng 1 giữ nguyên và dòng 2 mang nội dung đã sửa. Cột `written_at` là thời điểm DuckDB ghi, theo giờ máy của bạn.
 
-> **[HÌNH 22: Snowsight đọc lại bảng sandbox, thấy đúng hai dòng DuckDB để lại]** (muc4_snowsight_notes.png)
+> **[HÌNH 22: Snowsight đọc lại bảng sandbox, thấy đúng hai dòng DuckDB để lại]** (muc4-snowsight-sandbox-notes.png)
 
 Bài chỉ thử thêm, sửa và xóa dòng. Các thao tác ghi khác của DuckDB lên bảng Snowflake quản lý chưa được kiểm tra.
 
@@ -814,17 +802,17 @@ uv run duckdb/write.py --try-silver
 
 Script chạy lại các bước ghi sandbox rồi thử thêm một dòng vào `lake.SILVER.DIM_CITY`. Kết quả đúng là lệnh bị từ chối.
 
-> **[HÌNH 23: DuckDB ghi vào Silver bị từ chối với lỗi 403]** (muc4_write_silver_refused.png)
+> **[HÌNH 23: DuckDB ghi vào Silver bị từ chối với lỗi 403]** (muc4-duckdb-silver-write-refused.png)
 
 Lệnh bị từ chối ở bước tải file Parquet lên S3. Khóa S3 mà Horizon cấp cho role chỉ có quyền đọc là khóa chỉ đọc, nên DuckDB không ghi được file dữ liệu và không đi tới bước commit. Đây là suy ra từ nội dung lỗi, tài liệu Snowflake không mô tả cơ chế này. Nếu bạn thấy dòng báo ghi thành công, hãy dừng lại, vì khi đó bảng DIM_CITY có thêm một dòng trùng và quyền của role đang sai.
 
-## 5. Dọn dẹp tài nguyên
+# Mục 5. Dọn dẹp tài nguyên
 
 Hạ tầng Openflow gồm cụm EKS, NAT gateway, RDS và các máy EC2, tất cả tính phí theo giờ dù pipeline không chạy, nên sau khi học xong bạn nên gỡ toàn bộ, từ Openflow, PostgreSQL, các đối tượng Snowflake đến bucket S3. Thao tác không đảo ngược được và xóa cả dữ liệu Bronze, Silver, Gold trong S3, vì vậy bạn chỉ làm khi không cần dữ liệu nữa.
 
 Thứ tự các bước quan trọng vì mỗi lớp phụ thuộc lớp trước. Hạ tầng của deployment phải được dỡ bằng script trước khi xóa stack, deployment phải terminate trước khi drop, và external volume chỉ xóa được sau khi các bảng Iceberg dùng nó đã biến mất. Các lệnh `aws` viết cho PowerShell và chạy từ thư mục gốc của repo, các câu SQL chạy trong worksheet của Snowsight.
 
-### Gỡ Openflow
+## Gỡ Openflow
 
 Bạn bắt đầu từ runtime. Lệnh `CASCADE` terminate luôn connector nằm trong runtime, nên bạn không cần xóa connector riêng:
 
@@ -873,7 +861,7 @@ Khóa đẩy lên agent chỉ có hiệu lực 60 giây, nên hai lệnh cuối 
 
 Script chạy khá lâu vì phải dỡ EKS và RDS, và kết thúc bằng dòng `delete successful`. Nếu mất kết nối, script vẫn chạy nền. Bạn kết nối lại và theo dõi bằng `journalctl -u docker -f -n 250`.
 
-> **[HÌNH 24: Cuối output của destroy.sh, dòng delete successful xác nhận hạ tầng đã được dỡ]** (muc5_destroy_success.png)
+> **[HÌNH 24: Cuối output của destroy.sh, dòng delete successful xác nhận hạ tầng đã được dỡ]** (muc5-infrastructure-destroy-success.png)
 
 Bạn gõ `exit` để thoát khỏi agent, rồi xem trạng thái deployment:
 
@@ -902,7 +890,7 @@ ALTER OPENFLOW DEPLOYMENT "aq_openflow_aws" TERMINATE;
 SHOW OPENFLOW DEPLOYMENTS;
 ```
 
-> **[HÌNH 25: Deployment aq_openflow_aws ở trạng thái TERMINATED, sẵn sàng để drop]** (muc5_deployment_terminated.png)
+> **[HÌNH 25: Deployment aq_openflow_aws ở trạng thái TERMINATED, sẵn sàng để drop]** (muc5-openflow-deployment-terminated.png)
 
 Khi đã TERMINATED, bạn drop deployment. Kết quả đúng là `SHOW` không còn dòng nào:
 
@@ -914,7 +902,7 @@ DROP OPENFLOW DEPLOYMENT "aq_openflow_aws";
 SHOW OPENFLOW DEPLOYMENTS;
 ```
 
-### Gỡ PostgreSQL
+## Gỡ PostgreSQL
 
 Stack `aq-postgres-ec2` chứa máy EC2 PostgreSQL cùng VPC và các subnet mà Openflow đã dùng, nên bạn xóa nó sau khi stack Openflow đã biến mất. Bước này xóa luôn dữ liệu nguồn trên EC2, còn các bảng Bronze nằm trong S3 nên chưa mất ở bước này:
 
@@ -923,7 +911,7 @@ aws cloudformation delete-stack --stack-name aq-postgres-ec2 --region us-east-2
 aws cloudformation wait stack-delete-complete --stack-name aq-postgres-ec2 --region us-east-2
 ```
 
-### Gỡ Snowflake và S3
+## Gỡ Snowflake và S3
 
 Các câu dưới xóa theo thứ tự phụ thuộc. User được xóa trước để authentication policy hết bị gắn vào user. Database được xóa trước external volume vì các bảng Iceberg còn tham chiếu volume. Role mặc định của bạn được đặt lại trước khi drop OPENFLOW_ADMIN. Bạn chạy toàn bộ bằng ACCOUNTADMIN và **Run all**, vì hai database do ACCOUNTADMIN sở hữu và dùng OPENFLOW_ADMIN sẽ báo thiếu quyền:
 
@@ -973,7 +961,7 @@ Remove-Item "infra\cloudformation\aq-openflow-aws.yaml" -ErrorAction SilentlyCon
 
 File `.env` và thư mục `.keys/` trong repo không bị xóa bởi các bước trên. PAT trong `.env` đã mất hiệu lực khi user bị xóa, còn khóa RSA trong `.keys/` vẫn là bí mật, nên nếu không định dựng lại bài, bạn xóa nốt hai thứ này.
 
-### Kiểm tra lần cuối
+## Kiểm tra lần cuối
 
 Bảy lệnh dưới kiểm tra không còn tài nguyên nào tính phí. Cả bảy lệnh không in gì là đúng, vì stack lưu trữ cũng đã bị xóa:
 
