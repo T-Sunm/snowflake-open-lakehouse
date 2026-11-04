@@ -1,12 +1,12 @@
 # Mục 1. Giới thiệu
 
-Trong nhiều hệ thống hiện nay, dữ liệu được nạp vào data warehouse theo lịch định kỳ (batch ingestion) và lưu ở định dạng mà chỉ nền tảng đó đọc được, nên muốn dùng ở công cụ khác thì phải xuất thêm một bản sao. Apache Iceberg đang dần trở thành lựa chọn mặc định cho lakehouse, vì cùng một bảng Iceberg có thể được nhiều engine truy cập trực tiếp. Tuy vậy, một định dạng mở là chưa đủ, vì catalog mới là nơi quyết định ai được đọc, ghi bảng nào. Nếu mỗi engine phải đi qua một catalog với hệ thống quyền và audit trail (lịch sử truy cập và thay đổi) khác nhau, dữ liệu vẫn bị nhân thành nhiều bản sao và vẫn gắn với nhà cung cấp của catalog đó. Việc đưa dữ liệu vào lakehouse cũng gặp khó khăn, vì nguồn thường là một operational database thay đổi liên tục, nên nạp theo lịch khiến dữ liệu đến trễ so với nguồn và khó nhận biết các dòng đã bị xóa. Khi nhiều nhóm cùng dùng chung một bộ dữ liệu, dữ liệu còn phải được kiểm tra chất lượng trước khi đến tay người dùng cuối.
+Nhiều hệ thống hiện nay nạp dữ liệu vào data warehouse theo lịch định kỳ (batch ingestion) và lưu ở định dạng chỉ nền tảng đó đọc được, nên muốn dùng ở công cụ khác thì phải xuất thêm một bản sao. Apache Iceberg đang dần trở thành lựa chọn mặc định cho lakehouse vì nhiều engine có thể truy cập trực tiếp cùng một bảng. Tuy vậy, định dạng mở là chưa đủ để nhiều engine cùng làm việc trên một bộ dữ liệu. Trên thực tế, mỗi engine thường kéo theo một bản sao dữ liệu, một hệ thống quyền và một audit trail (lịch sử truy cập và thay đổi) riêng, nên khó quản lý dữ liệu một cách thống nhất. Ở phía đầu vào, cách nạp theo lịch cũng gặp hạn chế khi nguồn là một operational database thay đổi liên tục, vì dữ liệu đến trễ so với nguồn và khó nhận biết các dòng đã bị xóa. Sau khi vào lakehouse, dữ liệu còn phải được kiểm tra chất lượng trước khi đến tay người dùng cuối.
 
-> **[HÌNH 1: Kiến trúc tổng quan của open lakehouse]** (`muc1-architecture-overview.png`)
-
-Trong bài này, chúng ta sẽ xây dựng một open lakehouse theo hướng khắc phục những hạn chế đó. Thay vì chờ đến lần nạp tiếp theo, mỗi thay đổi trong PostgreSQL được đưa liên tục vào Bronze bằng CDC (change data capture). Dữ liệu chỉ được cập nhật vào Silver sau khi đã vượt qua các bước kiểm tra chất lượng, rồi từ Silver tiếp tục được tổng hợp thành Gold. Vì tất cả các bảng đều nằm trên S3 dưới dạng Iceberg và dùng chung một catalog, ngoài Snowflake, ta còn có thể dùng DuckDB để đọc và ghi trên chính bộ dữ liệu đó mà không phải sao chép thêm.
+> **[HÌNH 1: Kiến trúc open lakehouse với CDC, Write-Audit-Publish và multi-engine access]** (`muc1-architecture-overview.pdf`)
 
 # Yêu cầu chuẩn bị
+
+Tutorial này xây dựng một open lakehouse nhằm khắc phục những hạn chế ở phần giới thiệu. Mỗi thay đổi trong PostgreSQL được đưa liên tục vào Bronze bằng CDC (change data capture) thay vì chờ lần nạp tiếp theo. Dữ liệu chỉ vào Silver sau khi vượt qua các bước kiểm tra chất lượng, rồi được tổng hợp tiếp thành Gold. Cuối cùng, mọi bảng nằm trên S3 dưới dạng Iceberg và dùng chung một catalog, nên DuckDB đọc và ghi được trên cùng bộ dữ liệu với Snowflake.
 
 Trước khi đi vào thực hành, bạn cần chuẩn bị sẵn một số thứ sau. Tài liệu chính thức của từng công cụ đã hướng dẫn cách cài.
 
@@ -15,8 +15,6 @@ Trước khi đi vào thực hành, bạn cần chuẩn bị sẵn một số th
 - **AWS CLI** từ phiên bản 2.32.0 trở lên, kèm Session Manager plugin, đăng nhập với region `us-east-2`.
 - **`uv`** để quản lý Python và thư viện cho các bước dùng Soda và DuckDB.
 - **Repo `snowflake-open-lakehouse`** đã clone về máy. Các lệnh trong bài chạy từ thư mục gốc của repo.
-
-Sau khi cài xong, bạn đăng nhập AWS CLI với region `us-east-2` để các lệnh trong tutorial dùng được ngay.
 
 
 # Mục 2. Đưa dữ liệu từ PostgreSQL vào Bronze
@@ -294,7 +292,7 @@ Kết quả đúng là một dòng có `active` là `t`, tức là connector đa
 
 ## 2.3. Theo dõi CDC qua insert, update và delete
 
-Sau initial snapshot, connector tiếp tục đọc thay đổi từ replication slot. Để quan sát, ta tạo ba thay đổi trên PostgreSQL bằng ba script có sẵn trên EC2, chạy trong phiên Session Manager như ở mục 2.1. Các script được chạy lần lượt, mỗi script một lần: sau mỗi script, đợi 1 đến 2 phút theo lịch gộp của connector rồi kiểm tra Bronze, và chỉ chạy script kế tiếp khi đã thấy kết quả. Các kết quả dưới đây giả định initial snapshot vừa hoàn thành và ba script chưa được chạy lần nào.
+Sau initial snapshot, connector tiếp tục đọc thay đổi từ replication slot. Để quan sát, ta tạo ba thay đổi trên PostgreSQL bằng ba script có sẵn trên EC2, chạy trong phiên Session Manager như ở [mục 2.1](#21-chuẩn-bị-hạ-tầng). Mỗi script chỉ chạy một lần, theo thứ tự. Sau mỗi script, đợi 1 đến 2 phút theo lịch gộp của connector rồi kiểm tra Bronze, và chỉ chạy script kế tiếp khi đã thấy kết quả. Các kết quả dưới đây ứng với lần chạy đầu tiên của ba script.
 
 **Insert:** script 04 thêm dòng `measurement_id = 2118` vào bảng measurements.
 
@@ -310,7 +308,7 @@ SELECT COUNT(*) FROM AQ_LAKEHOUSE.AQ.MEASUREMENTS;
 
 Kết quả đúng là 2118, tăng một dòng so với initial snapshot.
 
-Thay đổi đầu tiên cũng khiến connector tạo journal của bảng measurements, cũng là một bảng Iceberg. Liệt kê các bảng journal để lấy tên của nó, có dạng `MEASUREMENTS_JOURNAL_<epoch>_<số>`:
+Thay đổi đầu tiên cũng khiến connector tạo journal của bảng measurements, là một bảng Iceberg. Liệt kê các bảng journal để lấy tên của nó, có dạng `MEASUREMENTS_JOURNAL_<epoch>_<số>`:
 
 ```sql
 SHOW TABLES LIKE '%JOURNAL%' IN SCHEMA AQ_LAKEHOUSE.AQ;
